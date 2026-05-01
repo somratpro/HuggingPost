@@ -1,14 +1,26 @@
 # ============================================================================
 # HuggingPost — Postiz v2.11.3 on Hugging Face Spaces
 #
-# Builds Postiz from source with a Next.js basePath="/app" patch so the
-# Postiz UI mounts at /app/* and our HuggingPost dashboard owns /.
+# Three-stage build to beat the HF Space builder memory limit:
 #
-# Why source build (not the prebuilt ghcr image): Next.js basePath is
-# build-time. The official image bakes basePath="/" into the static bundle,
-# so we'd be unable to relocate the UI to /app without rebuilding.
+#   Stage 1 (postiz-builder):  clone, patch, install deps,
+#                               build backend + workers + cron.
+#   Stage 2 (postiz-frontend): copy tree from Stage 1, build ONLY the
+#                               Next.js frontend in a clean process.
+#                               Stage 1's processes are dead → their RSS
+#                               is fully freed before `next build` starts.
+#   Stage 3 (runtime):         copy server build from Stage 1,
+#                               overlay frontend .next from Stage 2.
 #
-# Container layout:
+# Why three stages (not two):
+#   Three NestJS builds (backend+workers+cron) leave ~1-2 GB of residual
+#   RSS in the same container even after each `pnpm run build:*` exits,
+#   because the OS hasn't reclaimed all pages. `next build` alone needs
+#   ~3-4 GB RSS (V8 heap + SWC + native addons). Together they exceed
+#   the HF builder cgroup limit → OOMKilled (exit 137).
+#   Splitting frontend into its own stage gives it a clean address space.
+#
+# Container layout at runtime:
 #   - nginx (port 5000, internal)        — Postiz frontend + backend + uploads
 #   - PM2 → 4 Postiz procs (backend/frontend/workers/cron)
 #   - postgres (port 5432, internal)
@@ -17,7 +29,7 @@
 #   - health-server.js (port 7860, public) — dashboard + reverse proxy
 # ============================================================================
 
-# ── Stage 1: Build Postiz with /app basePath patch ───────────────────────────
+# ── Stage 1: Clone, patch, install deps, build server apps ───────────────────
 FROM node:22.20-alpine AS postiz-builder
 
 WORKDIR /build
@@ -37,15 +49,12 @@ RUN npm install -g pnpm@10.6.1
 # Pinned to v2.11.3 — last release before Temporal became a hard requirement.
 RUN git clone --depth=1 --branch v2.11.3 https://github.com/gitroomhq/postiz-app.git .
 
-# Patch Next.js config for four memory/path fixes:
-#   1. basePath/assetPrefix=/app  → mount Postiz UI at /app.
-#   2. Disable browser sourcemaps (productionBrowserSourceMaps: true upstream
-#      causes peak RSS spike during bundle emit).
-#   3. Disable Sentry webpack sourcemap plugin (disable: false upstream).
-#   4. experimental.cpus=1 + workerThreads=false — Next.js 14 spawns
-#      N-1 webpack worker threads by default; each holds a full module graph
-#      copy in memory. Single-thread compilation trades speed for RAM.
-#      This is the primary fix for exit 137 / OOMKilled on HF builder.
+# Patch Next.js config:
+#   1. basePath/assetPrefix=/app  → Postiz UI mounts at /app; dashboard owns /
+#   2. productionBrowserSourceMaps: false  → saves ~500 MB RSS during emit
+#   3. Sentry sourcemap plugin: disable: true  → saves another ~300 MB
+#   4. experimental.cpus=1 + workerThreads=false  → single-thread webpack;
+#      no parallel worker copies of the module graph in memory
 RUN sed -i "s|const nextConfig = {|const nextConfig = {\n  basePath: '/app',\n  assetPrefix: '/app',|" apps/frontend/next.config.js \
     && sed -i "s|productionBrowserSourceMaps: true|productionBrowserSourceMaps: false|" apps/frontend/next.config.js \
     && sed -i "s|disable: false,|disable: true,|" apps/frontend/next.config.js \
@@ -55,8 +64,7 @@ RUN sed -i "s|const nextConfig = {|const nextConfig = {\n  basePath: '/app',\n  
     && grep -q "cpus: 1" apps/frontend/next.config.js \
     || (echo "PATCH FAILED — next.config.js shape changed upstream"; exit 1)
 
-# Sentry env stubs — even with the wrapper bypassed, transitive imports may
-# probe these. Empty values keep them from doing network calls.
+# Sentry env stubs — keep transitive Sentry imports from doing network calls.
 ENV SENTRY_DSN="" \
     SENTRY_AUTH_TOKEN="" \
     SENTRY_ORG="" \
@@ -65,22 +73,48 @@ ENV SENTRY_DSN="" \
     NEXT_TELEMETRY_DISABLED=1 \
     NEXT_PRIVATE_SKIP_SIZE_MINIMIZATION=true
 
-# Install all deps (sharp is optional but Next.js image optimization needs it).
+# Install all deps (shared pnpm virtual store for all workspace packages).
 RUN pnpm install --frozen-lockfile=false
 
-# Build apps one at a time with a 3 GB heap. Sequential matters: parallel
-# Next.js + Nest builds each spawn workers and stack peak RSS.
+# Build server-side apps sequentially at 3 GB heap each.
+# Frontend is intentionally excluded — built in its own stage below.
 RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:backend
 RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:workers
 RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:cron
-RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:frontend
 
-# Drop dev junk to shrink the runtime image.
+# Clean up dev artefacts before Stage 3 copies this tree into the runtime image.
 RUN find . -name ".git" -type d -prune -exec rm -rf {} + 2>/dev/null || true \
  && rm -rf .github reports Jenkins .devcontainer 2>/dev/null || true
 
 
-# ── Stage 2: Runtime ─────────────────────────────────────────────────────────
+# ── Stage 2: Build Next.js frontend in isolation ──────────────────────────────
+FROM node:22.20-alpine AS postiz-frontend
+
+WORKDIR /build
+
+# pnpm must be present to run workspace scripts.
+RUN npm install -g pnpm@10.6.1
+
+# Copy the full build tree from Stage 1:
+#   - patched apps/frontend/next.config.js
+#   - node_modules (pnpm virtual store, all symlinks intact within the tree)
+#   - already-built server apps (needed for any cross-package type references)
+# Stage 1's processes are dead here → its RSS is freed by the OS.
+# next build therefore starts with a clean address space.
+COPY --from=postiz-builder /build /build
+
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_PRIVATE_SKIP_SIZE_MINIMIZATION=true \
+    SENTRY_DSN="" \
+    SENTRY_AUTH_TOKEN="" \
+    SENTRY_ORG="" \
+    SENTRY_PROJECT="" \
+    NEXT_PUBLIC_SENTRY_DSN=""
+
+RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:frontend
+
+
+# ── Stage 3: Runtime ──────────────────────────────────────────────────────────
 FROM node:22.20-alpine
 
 WORKDIR /app
@@ -114,13 +148,14 @@ RUN pip install --no-cache-dir --break-system-packages \
     huggingface_hub \
     PyYAML
 
-# Copy fully-built Postiz into /app
+# Copy server-side build (backend + workers + cron + node_modules, cleaned).
 COPY --from=postiz-builder /build /app
 
-# Use upstream's nginx.conf — defines the routing nginx :5000 → backend :3000
-# (under /api), uploads alias, and frontend :4200 (under /). HuggingPost's
-# health-server already strips /app before forwarding here, so nginx sees
-# the same paths it expects in the upstream layout.
+# Overlay the compiled Next.js frontend from its isolated build stage.
+COPY --from=postiz-frontend /build/apps/frontend/.next /app/apps/frontend/.next
+
+# Use upstream's nginx.conf — routes /api→3000, /uploads→fs, /→4200.
+# health-server strips /app before forwarding, so nginx sees expected paths.
 COPY --from=postiz-builder /build/var/docker/nginx.conf /etc/nginx/nginx.conf
 
 # Health-server lives outside /app so its node_modules don't collide with
