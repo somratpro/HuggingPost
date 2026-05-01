@@ -73,7 +73,7 @@ RUN pnpm install --frozen-lockfile=false
 RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:backend
 RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:workers
 RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:cron
-RUN NODE_OPTIONS="--max-old-space-size=2048" pnpm run build:frontend
+RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:frontend
 
 # Drop dev junk to shrink the runtime image.
 RUN find . -name ".git" -type d -prune -exec rm -rf {} + 2>/dev/null || true \
