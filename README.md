@@ -227,8 +227,11 @@ Total resident set ~3–6 GB under typical load — well within HF free tier's 1
 
 ## 🐛 Troubleshooting
 
+**First boot takes 5–8 minutes**
+The Next.js frontend is not compiled during the Docker build (the HF builder's ~4 GB memory limit is less than `next build` needs). Instead it compiles on first container startup where 16 GB is available. Watch `[frontend-build]` lines in the Logs tab. Postiz starts automatically when done. All subsequent restarts are fast — the compiled `.next` is stored in the HF Dataset backup and restored at boot.
+
 **"Postiz backend unavailable" on first load**
-First boot takes 30–90s after the build finishes. Wait for the dashboard to show green badges for both backend and frontend.
+On restarts after the first boot, wait 30–90 s for PM2 processes to come up. Check the dashboard status badges.
 
 **Data lost after restart**
 `HF_TOKEN` is not set, or it doesn't have write access. Add it and the next restart will restore from backup. The backup must have run at least once before the restart.

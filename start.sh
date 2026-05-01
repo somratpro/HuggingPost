@@ -157,6 +157,34 @@ else
     echo "   Add HF_TOKEN as a Space secret to enable DB+uploads backup."
 fi
 
+# ── Build Next.js frontend (first boot or after a fresh deploy) ───────────────
+# next build is NOT run during docker build — the HF builder's ~4 GB cgroup
+# limit is less than what next build needs. We run it here where the runtime
+# has 16 GB. On subsequent starts the .next directory is restored from the
+# HF Dataset backup, so this block only executes once (or after a version bump).
+FRONTEND_NEXT="${POSTIZ_DIR}/apps/frontend/.next"
+if [ ! -f "${FRONTEND_NEXT}/BUILD_ID" ]; then
+    echo ""
+    echo "  ┌─────────────────────────────────────────────────────────────────┐"
+    echo "  │  Building Next.js frontend (first boot — takes ~5 min)          │"
+    echo "  │  Dashboard is live at ${PUBLIC_URL}/                             │"
+    echo "  │  Postiz will start automatically when the build finishes.        │"
+    echo "  └─────────────────────────────────────────────────────────────────┘"
+    echo ""
+    cd "${POSTIZ_DIR}"
+    SENTRY_DSN="" \
+    SENTRY_AUTH_TOKEN="" \
+    SENTRY_ORG="" \
+    SENTRY_PROJECT="" \
+    NEXT_PUBLIC_SENTRY_DSN="" \
+    NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_PRIVATE_SKIP_SIZE_MINIMIZATION=true \
+    NODE_OPTIONS="--max-old-space-size=8192" \
+    pnpm run build:frontend 2>&1 | sed 's/^/[frontend-build] /'
+    echo "Frontend build complete."
+    cd /
+fi
+
 # ── Cloudflare proxy bootstrap ───────────────────────────────────────────────
 if [ -n "${CLOUDFLARE_WORKERS_TOKEN:-}" ]; then
     echo "Setting up Cloudflare proxy..."

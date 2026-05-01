@@ -46,10 +46,11 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 HF_USERNAME = os.environ.get("HF_USERNAME")
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postiz:postiz@localhost:5432/postiz")
 BACKUP_DATASET_NAME = os.environ.get("BACKUP_DATASET_NAME", "huggingpost-backup")
-SYNC_MAX_FILE_BYTES = int(os.environ.get("SYNC_MAX_FILE_BYTES", str(100 * 1024 * 1024)))  # 100 MB
+SYNC_MAX_FILE_BYTES = int(os.environ.get("SYNC_MAX_FILE_BYTES", str(300 * 1024 * 1024)))  # 300 MB
 POSTIZ_HOME = Path(os.environ.get("POSTIZ_HOME", "/postiz"))
 UPLOADS_DIR = Path(os.environ.get("UPLOAD_DIRECTORY", str(POSTIZ_HOME / "uploads")))
 SECRETS_DIR = POSTIZ_HOME / ".secrets"
+NEXT_DIR = Path("/app/apps/frontend/.next")   # compiled frontend; backed up to skip rebuild
 STATUS_FILE = Path("/tmp/sync-status.json")
 
 
@@ -141,6 +142,13 @@ def backup_database() -> tuple[str | None, bool]:
         return None, False
 
 
+def _exclude_next_cache(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo | None:
+    """Filter for tarfile.add — drops .next/cache (webpack build cache, large and unneeded at runtime)."""
+    if "/frontend/.next/cache" in tarinfo.name or tarinfo.name.endswith("/.next/cache"):
+        return None
+    return tarinfo
+
+
 def create_backup_tarball(dump_file: str) -> tuple[str | None, bool]:
     temp_dir = tempfile.mkdtemp()
     tarball = Path(temp_dir) / "huggingpost-backup.tar.gz"
@@ -151,6 +159,11 @@ def create_backup_tarball(dump_file: str) -> tuple[str | None, bool]:
                 tar.add(str(UPLOADS_DIR), arcname="uploads")
             if SECRETS_DIR.exists():
                 tar.add(str(SECRETS_DIR), arcname=".secrets")
+            # Include compiled frontend so subsequent restarts skip the 5-min build.
+            # Exclude .next/cache (webpack cache) — large and not needed to run.
+            if NEXT_DIR.exists() and (NEXT_DIR / "BUILD_ID").exists():
+                tar.add(str(NEXT_DIR), arcname="frontend-next", filter=_exclude_next_cache)
+                logger.debug("Included .next in tarball (webpack cache excluded)")
         size = tarball.stat().st_size
         size_mb = size / 1024 / 1024
         logger.debug(f"Tarball created ({size_mb:.2f} MB)")
@@ -305,6 +318,18 @@ def download_and_restore() -> bool | None:
                         shutil.copy2(item, target)
                 except Exception as e:
                     logger.warning(f"Failed to restore upload {item.name}: {e}")
+
+        # Restore compiled Next.js frontend (.next without cache).
+        # If present, start.sh will skip the 5-min `pnpm run build:frontend`.
+        next_src = Path(temp_dir) / "frontend-next"
+        if next_src.exists():
+            try:
+                if NEXT_DIR.exists():
+                    shutil.rmtree(NEXT_DIR)
+                shutil.copytree(next_src, NEXT_DIR)
+                logger.info(f"Restored .next from backup ({sum(f.stat().st_size for f in NEXT_DIR.rglob('*') if f.is_file()) / 1024 / 1024:.1f} MB)")
+            except Exception as e:
+                logger.warning(f"Failed to restore .next (will rebuild on start): {e}")
 
         return restore_database(str(sql))
     except Exception as e:
