@@ -109,7 +109,7 @@ chown -R postgres:postgres "${PGDATA}"
 if ! su-exec postgres "${PG_BIN}/pg_ctl" -D "${PGDATA}" status >/dev/null 2>&1; then
     echo "Starting Postgres..."
     su-exec postgres "${PG_BIN}/pg_ctl" -D "${PGDATA}" \
-        -l "${POSTIZ_HOME}/pg.log" \
+        -l "/tmp/pg.log" \
         -o "-c listen_addresses='127.0.0.1' -c unix_socket_directories='/var/run/postgresql'" \
         start >/dev/null
 fi
