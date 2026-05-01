@@ -37,20 +37,22 @@ RUN npm install -g pnpm@10.6.1
 # Pinned to v2.11.3 — last release before Temporal became a hard requirement.
 RUN git clone --depth=1 --branch v2.11.3 https://github.com/gitroomhq/postiz-app.git .
 
-# Patch Next.js config to fix two things:
-#   1. basePath/assetPrefix=/app  → mount Postiz UI at /app (HuggingPost
-#      dashboard owns /).
-#   2. Disable sourcemap generation — Postiz upstream sets both
-#      `productionBrowserSourceMaps: true` AND Sentry's webpack plugin
-#      `sourcemaps: { disable: false }`. Together they push peak build
-#      memory past HF Space builder limits (exit 137 OOMKilled).
-#      We flip both to false; visible cost is no client-side stack-trace
-#      symbolization, which we don't need on a self-host.
+# Patch Next.js config for four memory/path fixes:
+#   1. basePath/assetPrefix=/app  → mount Postiz UI at /app.
+#   2. Disable browser sourcemaps (productionBrowserSourceMaps: true upstream
+#      causes peak RSS spike during bundle emit).
+#   3. Disable Sentry webpack sourcemap plugin (disable: false upstream).
+#   4. experimental.cpus=1 + workerThreads=false — Next.js 14 spawns
+#      N-1 webpack worker threads by default; each holds a full module graph
+#      copy in memory. Single-thread compilation trades speed for RAM.
+#      This is the primary fix for exit 137 / OOMKilled on HF builder.
 RUN sed -i "s|const nextConfig = {|const nextConfig = {\n  basePath: '/app',\n  assetPrefix: '/app',|" apps/frontend/next.config.js \
     && sed -i "s|productionBrowserSourceMaps: true|productionBrowserSourceMaps: false|" apps/frontend/next.config.js \
     && sed -i "s|disable: false,|disable: true,|" apps/frontend/next.config.js \
+    && sed -i "s|experimental: {|experimental: {\n    cpus: 1,\n    workerThreads: false,|" apps/frontend/next.config.js \
     && grep -q "basePath: '/app'" apps/frontend/next.config.js \
     && grep -q "productionBrowserSourceMaps: false" apps/frontend/next.config.js \
+    && grep -q "cpus: 1" apps/frontend/next.config.js \
     || (echo "PATCH FAILED — next.config.js shape changed upstream"; exit 1)
 
 # Sentry env stubs — even with the wrapper bypassed, transitive imports may
@@ -60,7 +62,8 @@ ENV SENTRY_DSN="" \
     SENTRY_ORG="" \
     SENTRY_PROJECT="" \
     NEXT_PUBLIC_SENTRY_DSN="" \
-    NEXT_TELEMETRY_DISABLED=1
+    NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_PRIVATE_SKIP_SIZE_MINIMIZATION=true
 
 # Install all deps (sharp is optional but Next.js image optimization needs it).
 RUN pnpm install --frozen-lockfile=false
@@ -70,7 +73,7 @@ RUN pnpm install --frozen-lockfile=false
 RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:backend
 RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:workers
 RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:cron
-RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:frontend
+RUN NODE_OPTIONS="--max-old-space-size=2048" pnpm run build:frontend
 
 # Drop dev junk to shrink the runtime image.
 RUN find . -name ".git" -type d -prune -exec rm -rf {} + 2>/dev/null || true \
