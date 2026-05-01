@@ -637,6 +637,39 @@ function buildProxyHeaders(headers) {
   };
 }
 
+function rewriteLocation(loc) {
+  // Postiz's Next.js middleware redirects without the basePath prefix (/app)
+  // and may use an internal hostname (127.0.0.1:NGINX_PORT) that HF Spaces'
+  // reverse proxy blocks (returning 200 empty body instead of the redirect).
+  //
+  // Normalise every Location header from the Postiz nginx proxy:
+  //   1. If it's an absolute URL to an internal host → extract the path.
+  //   2. If the resulting path doesn't start with /app → prepend /app.
+  //
+  // Examples:
+  //   http://127.0.0.1:5000/auth/login  → /app/auth/login
+  //   http://localhost:4200/auth         → /app/auth
+  //   /auth/login                        → /app/auth/login
+  //   /app/auth/login                    → /app/auth/login  (unchanged)
+  //   https://twitter.com/oauth/...      → unchanged (external host)
+  if (!loc) return loc;
+  let path = null;
+  if (loc.startsWith("/")) {
+    path = loc;
+  } else {
+    try {
+      const u = new URL(loc);
+      if (/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(u.host)) {
+        path = u.pathname + u.search + u.hash;
+      }
+    } catch {}
+  }
+  if (path !== null && !path.startsWith("/app/") && path !== "/app") {
+    return "/app" + path;
+  }
+  return loc;
+}
+
 function proxyHttp(req, res, overridePath) {
   const targetPath = overridePath !== undefined ? overridePath : req.url;
   let upstreamStarted = false;
@@ -645,7 +678,12 @@ function proxyHttp(req, res, overridePath) {
       path: targetPath, headers: buildProxyHeaders(req.headers) },
     (proxyRes) => {
       upstreamStarted = true;
-      res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+      // Rewrite Location headers: add /app basePath if missing, convert
+      // internal-host absolute URLs to relative paths.
+      const outHeaders = Object.assign({}, proxyRes.headers);
+      const fixedLoc = rewriteLocation(outHeaders["location"]);
+      if (fixedLoc !== outHeaders["location"]) outHeaders["location"] = fixedLoc;
+      res.writeHead(proxyRes.statusCode || 502, outHeaders);
       proxyRes.pipe(res);
     },
   );
