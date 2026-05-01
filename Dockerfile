@@ -53,11 +53,12 @@ RUN git clone --depth=1 --branch v2.11.3 https://github.com/gitroomhq/postiz-app
 #   4. swcMinify: false  → Terser (pure JS) instead of native SWC binary;
 #      avoids extra RSS outside the V8 heap
 #   5. experimental.cpus=1 + workerThreads=false  → single-thread webpack
-RUN sed -i "s|const nextConfig = {|const nextConfig = {\n  basePath: '/app',\n  assetPrefix: '/app',\n  swcMinify: false,|" apps/frontend/next.config.js \
+RUN sed -i "s|const nextConfig = {|const nextConfig = {\n  basePath: '/app',\n  assetPrefix: '/app',\n  trailingSlash: true,\n  swcMinify: false,|" apps/frontend/next.config.js \
     && sed -i "s|productionBrowserSourceMaps: true|productionBrowserSourceMaps: false|" apps/frontend/next.config.js \
     && sed -i "s|disable: false,|disable: true,|" apps/frontend/next.config.js \
     && sed -i "s|experimental: {|experimental: {\n    cpus: 1,\n    workerThreads: false,|" apps/frontend/next.config.js \
     && grep -q "basePath: '/app'" apps/frontend/next.config.js \
+    && grep -q "trailingSlash: true" apps/frontend/next.config.js \
     && grep -q "productionBrowserSourceMaps: false" apps/frontend/next.config.js \
     && grep -q "swcMinify: false" apps/frontend/next.config.js \
     && grep -q "cpus: 1" apps/frontend/next.config.js \

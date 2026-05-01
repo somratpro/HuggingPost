@@ -157,20 +157,33 @@ else
     echo "   Add HF_TOKEN as a Space secret to enable DB+uploads backup."
 fi
 
-# ── Build Next.js frontend (first boot or after a fresh deploy) ───────────────
+# ── Build Next.js frontend (first boot or after next.config.js change) ───────
 # next build is NOT run during docker build — the HF builder's ~4 GB cgroup
 # limit is less than what next build needs. We run it here where the runtime
 # has 16 GB. On subsequent starts the .next directory is restored from the
-# HF Dataset backup, so this block only executes once (or after a version bump).
+# HF Dataset backup, so this block only executes once per config version.
+#
+# Config-hash check: if next.config.js changed (new image deploy), the stored
+# hash inside .next won't match — we rebuild automatically even if BUILD_ID
+# exists. This avoids serving a .next compiled with stale settings.
 FRONTEND_NEXT="${POSTIZ_DIR}/apps/frontend/.next"
-if [ ! -f "${FRONTEND_NEXT}/BUILD_ID" ]; then
-    echo ""
-    echo "  ┌─────────────────────────────────────────────────────────────────┐"
-    echo "  │  Building Next.js frontend (first boot — takes ~5 min)          │"
-    echo "  │  Dashboard is live at ${PUBLIC_URL}/                             │"
-    echo "  │  Postiz will start automatically when the build finishes.        │"
-    echo "  └─────────────────────────────────────────────────────────────────┘"
-    echo ""
+CONFIG_HASH=$(md5sum "${POSTIZ_DIR}/apps/frontend/next.config.js" 2>/dev/null | cut -d' ' -f1 || echo "none")
+STORED_HASH=$(cat "${FRONTEND_NEXT}/.config-hash" 2>/dev/null || echo "")
+
+if [ ! -f "${FRONTEND_NEXT}/BUILD_ID" ] || [ "${CONFIG_HASH}" != "${STORED_HASH}" ]; then
+    if [ "${CONFIG_HASH}" != "${STORED_HASH}" ] && [ -f "${FRONTEND_NEXT}/BUILD_ID" ]; then
+        echo ""
+        echo "  next.config.js changed — rebuilding frontend (~5 min)..."
+        echo ""
+    else
+        echo ""
+        echo "  ┌─────────────────────────────────────────────────────────────────┐"
+        echo "  │  Building Next.js frontend (first boot — takes ~5 min)          │"
+        echo "  │  Dashboard is live at ${PUBLIC_URL}/                             │"
+        echo "  │  Postiz will start automatically when the build finishes.        │"
+        echo "  └─────────────────────────────────────────────────────────────────┘"
+        echo ""
+    fi
     cd "${POSTIZ_DIR}"
     SENTRY_DSN="" \
     SENTRY_AUTH_TOKEN="" \
@@ -181,6 +194,7 @@ if [ ! -f "${FRONTEND_NEXT}/BUILD_ID" ]; then
     NEXT_PRIVATE_SKIP_SIZE_MINIMIZATION=true \
     NODE_OPTIONS="--max-old-space-size=8192" \
     pnpm run build:frontend 2>&1 | sed 's/^/[frontend-build] /'
+    echo "${CONFIG_HASH}" > "${FRONTEND_NEXT}/.config-hash"
     echo "Frontend build complete."
     cd /
 fi
