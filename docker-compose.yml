@@ -1,0 +1,54 @@
+# Local-dev convenience. For HF Space deployment, the Dockerfile alone is
+# enough — HF runs the container with auto-injected SPACE_HOST.
+#
+# Usage:
+#   cp .env.example .env   # add HF_TOKEN
+#   docker compose up --build
+#   open http://localhost:7860/
+
+services:
+  huggingpost:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: huggingpost
+    environment:
+      # HF backup (optional for local testing, but lets you smoke-test the
+      # restore path).
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_USERNAME: ${HF_USERNAME:-}
+      SYNC_INTERVAL: "180"
+      BACKUP_DATASET_NAME: huggingpost-backup-dev
+
+      # Public URL override (no SPACE_HOST when running locally)
+      FRONTEND_URL: http://localhost:7860
+      NEXT_PUBLIC_BACKEND_URL: http://localhost:7860/api
+      BACKEND_INTERNAL_URL: http://localhost:3000
+
+      # Storage
+      STORAGE_PROVIDER: local
+
+      # Cloudflare proxy (optional)
+      # CLOUDFLARE_WORKERS_TOKEN: ${CLOUDFLARE_WORKERS_TOKEN:-}
+
+    ports:
+      - "7860:7860"   # public — dashboard + reverse proxy
+      - "3000:3000"   # direct backend access (dev only)
+      - "4200:4200"   # direct frontend access (dev only)
+    volumes:
+      - postiz_data:/postiz
+      # Hot-reload of orchestration scripts during local dev (rebuild image
+      # when Dockerfile / postiz tree changes):
+      - ./start.sh:/app/start.sh
+      - ./health-server.js:/app/health-server.js
+      - ./postiz-sync.py:/app/postiz-sync.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
+volumes:
+  postiz_data:
+    driver: local
