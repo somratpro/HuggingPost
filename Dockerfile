@@ -119,7 +119,15 @@ RUN pip install --no-cache-dir --break-system-packages \
 COPY --from=postiz-builder /build /app
 
 # nginx.conf: routes /api→3000, /uploads→fs, /→4200.
+# Patch: re-add /app prefix before proxying to Next.js (port 4200) because:
+#   health-server strips /app from incoming /app/* requests before forwarding
+#   to nginx. Next.js is built with basePath="/app" so it expects /app/* paths.
+#   Without the patch, nginx sends /auth/login → Next.js returns 404.
+#   With the patch, nginx sends /app/auth/login → Next.js handles it correctly.
 COPY --from=postiz-builder /build/var/docker/nginx.conf /etc/nginx/nginx.conf
+RUN sed -i 's|proxy_pass http://127.0.0.1:4200/;|proxy_pass http://127.0.0.1:4200/app/;|; s|proxy_pass http://localhost:4200/;|proxy_pass http://localhost:4200/app/;|' /etc/nginx/nginx.conf \
+    && grep -q '/app/' /etc/nginx/nginx.conf \
+    || (echo "NGINX PATCH FAILED — upstream nginx.conf format changed"; cat /etc/nginx/nginx.conf; exit 1)
 
 # Health-server outside /app to avoid pnpm workspace collisions.
 RUN mkdir -p /opt/healthsrv && cd /opt/healthsrv && \
