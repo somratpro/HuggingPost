@@ -172,8 +172,10 @@ HuggingPost will create or update a Worker named `<your-space-host>-proxy` and r
 Each social platform requires you to register your Postiz instance as an OAuth app. The callback URL pattern is:
 
 ```
-https://<your-space-host>/api/integrations/social/<platform>/callback
+https://<your-space-host>/app/api/integrations/social/<platform>/callback
 ```
+
+(Note the `/app` prefix — Postiz UI is mounted there so its API is too.)
 
 For each platform you want (X, LinkedIn, Facebook, etc.), follow the [Postiz provider docs](https://docs.postiz.com/providers) to obtain client ID + secret, then enter them inside Postiz **Settings → Channels** (NOT as Space secrets — Postiz stores them encrypted in its DB).
 
@@ -201,21 +203,22 @@ HuggingPost/
 
 | Path | Target | Notes |
 | :--- | :--- | :--- |
-| `/` | dashboard (local) | HTML status page |
-| `/health`, `/status`, `/uptimerobot/setup` | local | JSON / handlers |
-| `/api/*` | backend `:3000` | `/api` prefix stripped |
-| `/uploads/*` | backend `:3000` | media files |
-| `/*` | frontend `:4200` | Next.js pages, `/_next/*`, etc. |
+| `/` | HuggingPost dashboard (local) | Status + UptimeRobot setup |
+| `/health`, `/status`, `/uptimerobot/setup` | local | JSON handlers |
+| `/app` or `/app/*` | Postiz nginx `:5000` | `/app` stripped — Next.js built with `basePath="/app"` |
+| `/_next/*`, `/static/*` | 301 → `/app/<path>` | Catches absolute-URL leaks |
+| anything else | 404 | — |
 
 **Internal processes:**
 
-| Process | Port | Memory cap |
+| Process | Port | Notes |
 | :--- | :--- | :--- |
-| `health-server.js` | 7860 (public) | — |
-| Postiz frontend (Next.js) | 4200 | 2 GB |
-| Postiz backend (NestJS) | 3000 | 2 GB |
-| Postiz workers | — | 1 GB |
-| Postiz cron | — | 512 MB |
+| `health-server.js` | 7860 (public) | Dashboard + reverse proxy |
+| nginx | 5000 (internal) | Routes `/api`→3000, `/uploads`→fs, `/`→4200 |
+| Postiz backend (NestJS) | 3000 | Started by PM2 |
+| Postiz frontend (Next.js) | 4200 | Started by PM2, `basePath=/app` baked at build |
+| Postiz workers | — | BullMQ consumer |
+| Postiz cron | — | Schedule tick |
 | `postgres` | 5432 | — |
 | `redis-server` | 6379 | — |
 | `postiz-sync.py` (loop) | — | — |
@@ -239,8 +242,8 @@ The Space slept. Set up UptimeRobot from the dashboard.
 **OAuth callback fails for X/Facebook/LinkedIn**
 Some platforms reject `*.hf.space` subdomains as redirect URIs. You may need to put a custom domain in front (Cloudflare → HF Space CNAME).
 
-**Out of memory during build**
-The Next.js build needs `--max-old-space-size=4096`. If you forked and changed the Dockerfile, make sure the `NODE_OPTIONS` flag is still on the `pnpm run build` line.
+**Out of memory during build (exit 137 / OOMKilled)**
+The Dockerfile patches `apps/frontend/next.config.js` to disable sourcemap generation (`productionBrowserSourceMaps: false` + Sentry `sourcemaps.disable: true`). Without these, peak build memory exceeds HF Space builder limits. If you forked and removed those sed patches, OOM returns. Builds also run apps sequentially (backend → workers → cron → frontend) at 3 GB heap each — parallel builds OOM.
 
 **`prisma-db-push` fails on first boot**
 Usually means Postgres didn't finish starting. Container will exit and HF will auto-restart — second boot usually succeeds. If it persists, check Logs for the actual Prisma error.

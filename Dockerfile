@@ -37,18 +37,40 @@ RUN npm install -g pnpm@10.6.1
 # Pinned to v2.11.3 — last release before Temporal became a hard requirement.
 RUN git clone --depth=1 --branch v2.11.3 https://github.com/gitroomhq/postiz-app.git .
 
-# Patch Next.js config to mount the frontend at /app.
-# We inject basePath + assetPrefix immediately after `const nextConfig = {`.
-# This makes Next.js generate links/asset URLs prefixed with /app, so the
-# browser will hit /app/_next/* etc., which our health-server then strips
-# back to /_next/* before passing to nginx.
+# Patch Next.js config to fix two things:
+#   1. basePath/assetPrefix=/app  → mount Postiz UI at /app (HuggingPost
+#      dashboard owns /).
+#   2. Disable sourcemap generation — Postiz upstream sets both
+#      `productionBrowserSourceMaps: true` AND Sentry's webpack plugin
+#      `sourcemaps: { disable: false }`. Together they push peak build
+#      memory past HF Space builder limits (exit 137 OOMKilled).
+#      We flip both to false; visible cost is no client-side stack-trace
+#      symbolization, which we don't need on a self-host.
 RUN sed -i "s|const nextConfig = {|const nextConfig = {\n  basePath: '/app',\n  assetPrefix: '/app',|" apps/frontend/next.config.js \
+    && sed -i "s|productionBrowserSourceMaps: true|productionBrowserSourceMaps: false|" apps/frontend/next.config.js \
+    && sed -i "s|disable: false,|disable: true,|" apps/frontend/next.config.js \
     && grep -q "basePath: '/app'" apps/frontend/next.config.js \
-    || (echo "BASEPATH PATCH FAILED — next.config.js shape changed upstream"; exit 1)
+    && grep -q "productionBrowserSourceMaps: false" apps/frontend/next.config.js \
+    || (echo "PATCH FAILED — next.config.js shape changed upstream"; exit 1)
 
-# Install + build. 4 GB heap for the Next.js compile.
+# Sentry env stubs — even with the wrapper bypassed, transitive imports may
+# probe these. Empty values keep them from doing network calls.
+ENV SENTRY_DSN="" \
+    SENTRY_AUTH_TOKEN="" \
+    SENTRY_ORG="" \
+    SENTRY_PROJECT="" \
+    NEXT_PUBLIC_SENTRY_DSN="" \
+    NEXT_TELEMETRY_DISABLED=1
+
+# Install all deps (sharp is optional but Next.js image optimization needs it).
 RUN pnpm install --frozen-lockfile=false
-RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm run build
+
+# Build apps one at a time with a 3 GB heap. Sequential matters: parallel
+# Next.js + Nest builds each spawn workers and stack peak RSS.
+RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:backend
+RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:workers
+RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:cron
+RUN NODE_OPTIONS="--max-old-space-size=3072" pnpm run build:frontend
 
 # Drop dev junk to shrink the runtime image.
 RUN find . -name ".git" -type d -prune -exec rm -rf {} + 2>/dev/null || true \
