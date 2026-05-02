@@ -45,35 +45,6 @@ RUN npm install -g pnpm@10.6.1
 # Pinned to v2.11.3 — last release before Temporal became a hard requirement.
 RUN git clone --depth=1 --branch v2.11.3 https://github.com/gitroomhq/postiz-app.git .
 
-# Patch Next.js config — applied now so the patched file is in the image and
-# `pnpm run build:frontend` in start.sh picks up all settings automatically.
-#   1. basePath/assetPrefix=/app   → Postiz UI at /app; HuggingPost dashboard owns /
-#   2. productionBrowserSourceMaps: false  → smaller build output
-#   3. Sentry sourcemap plugin disabled   → no network calls during build
-#   4. swcMinify: false  → Terser (pure JS) instead of native SWC binary;
-#      avoids extra RSS outside the V8 heap
-#   5. experimental.cpus=1 + workerThreads=false  → single-thread webpack
-RUN sed -i "s|const nextConfig = {|const nextConfig = {\n  basePath: '/app',\n  assetPrefix: '/app',\n  trailingSlash: true,\n  swcMinify: false,|" apps/frontend/next.config.js \
-    && sed -i "s|productionBrowserSourceMaps: true|productionBrowserSourceMaps: false|" apps/frontend/next.config.js \
-    && sed -i "s|disable: false,|disable: true,|" apps/frontend/next.config.js \
-    && sed -i "s|experimental: {|experimental: {\n    cpus: 1,\n    workerThreads: false,|" apps/frontend/next.config.js \
-    && grep -q "basePath: '/app'" apps/frontend/next.config.js \
-    && grep -q "trailingSlash: true" apps/frontend/next.config.js \
-    && grep -q "productionBrowserSourceMaps: false" apps/frontend/next.config.js \
-    && grep -q "swcMinify: false" apps/frontend/next.config.js \
-    && grep -q "cpus: 1" apps/frontend/next.config.js \
-    || (echo "PATCH FAILED — next.config.js shape changed upstream"; exit 1)
-# Patch: disable Next.js image optimisation.
-# With basePath="/app", the _next/image optimizer fetches static files from
-# Next.js's internal URL without the basePath prefix, causing 400 errors.
-# unoptimized:true makes <Image> render as plain <img> tags; the browser
-# fetches /app/auth/avatars/… which routes correctly through nginx.
-# If Postiz already has an images:{} block, inject unoptimized inside it;
-# otherwise add a new images block at the top of nextConfig.
-RUN grep -q 'images:' apps/frontend/next.config.js \
-    && sed -i 's|images: {|images: {\n    unoptimized: true,|' apps/frontend/next.config.js \
-    || sed -i "s|const nextConfig = {|const nextConfig = {\n  images: { unoptimized: true },|" apps/frontend/next.config.js
-
 ENV SENTRY_DSN="" \
     SENTRY_AUTH_TOKEN="" \
     SENTRY_ORG="" \
@@ -82,7 +53,31 @@ ENV SENTRY_DSN="" \
     NEXT_TELEMETRY_DISABLED=1 \
     NEXT_PRIVATE_SKIP_SIZE_MINIMIZATION=true
 
+# Install deps BEFORE patching so the install layer is cached independently.
+# Patches are sed commands on JS files — they don't affect node_modules.
+# Changing patches won't bust the pnpm install cache layer.
 RUN pnpm install --frozen-lockfile=false
+
+# Patch Next.js config (after install — see above).
+#   1. basePath/assetPrefix=/app   → Postiz UI at /app; HuggingPost dashboard owns /
+#   2. productionBrowserSourceMaps: false  → smaller build output
+#   3. Sentry sourcemap plugin disabled   → no network calls during build
+#   4. swcMinify: false  → Terser (pure JS) instead of native SWC binary
+#   5. experimental.cpus=1 + workerThreads=false  → single-thread webpack
+#   6. images.unoptimized: true  → skip _next/image optimizer (fails with basePath)
+RUN sed -i "s|const nextConfig = {|const nextConfig = {\n  basePath: '/app',\n  assetPrefix: '/app',\n  trailingSlash: true,\n  swcMinify: false,|" apps/frontend/next.config.js \
+    && sed -i "s|productionBrowserSourceMaps: true|productionBrowserSourceMaps: false|" apps/frontend/next.config.js \
+    && sed -i "s|disable: false,|disable: true,|" apps/frontend/next.config.js \
+    && sed -i "s|experimental: {|experimental: {\n    cpus: 1,\n    workerThreads: false,|" apps/frontend/next.config.js \
+    && (grep -q 'images:' apps/frontend/next.config.js \
+        && sed -i 's|images: {|images: {\n    unoptimized: true,|' apps/frontend/next.config.js \
+        || sed -i "s|const nextConfig = {|const nextConfig = {\n  images: { unoptimized: true },|" apps/frontend/next.config.js) \
+    && grep -q "basePath: '/app'" apps/frontend/next.config.js \
+    && grep -q "trailingSlash: true" apps/frontend/next.config.js \
+    && grep -q "productionBrowserSourceMaps: false" apps/frontend/next.config.js \
+    && grep -q "swcMinify: false" apps/frontend/next.config.js \
+    && grep -q "cpus: 1" apps/frontend/next.config.js \
+    || (echo "PATCH FAILED — next.config.js shape changed upstream"; exit 1)
 
 # Build server-side apps. Sequential + 3 GB heap each.
 # Frontend is NOT built here — see start.sh.
