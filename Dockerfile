@@ -58,6 +58,24 @@ ENV SENTRY_DSN="" \
 # Changing patches won't bust the pnpm install cache layer.
 RUN pnpm install --frozen-lockfile=false
 
+# Vendor Plus Jakarta Sans — HF Space cannot reach fonts.gstatic.com.
+# Postiz upstream imports `Plus_Jakarta_Sans` from `next/font/google` in two
+# layout files, which forces a build-time fetch from gstatic. HF egress to
+# gstatic is blocked/throttled, so `next build` retry-loops indefinitely.
+# We ship 4 woff2 variants in the image and rewrite both layouts to use
+# `next/font/local` (zero network at build).
+COPY vendor/fonts/PlusJakartaSans-500-normal.woff2 \
+     vendor/fonts/PlusJakartaSans-500-italic.woff2 \
+     vendor/fonts/PlusJakartaSans-600-normal.woff2 \
+     vendor/fonts/PlusJakartaSans-600-italic.woff2 \
+     apps/frontend/src/fonts/
+COPY vendor/patch-jakarta-font.js /tmp/patch-jakarta-font.js
+RUN node /tmp/patch-jakarta-font.js \
+    && grep -q "next/font/local" "apps/frontend/src/app/(app)/layout.tsx" \
+    && grep -q "next/font/local" "apps/frontend/src/app/(extension)/layout.tsx" \
+    && ! grep -rq "next/font/google" apps/frontend/src/app/ \
+    || (echo "JAKARTA PATCH FAILED — layout.tsx shape changed upstream"; exit 1)
+
 # Patch Next.js config (after install — see above).
 #   1. basePath/assetPrefix=/app   → Postiz UI at /app; HuggingPost dashboard owns /
 #   2. productionBrowserSourceMaps: false  → smaller build output

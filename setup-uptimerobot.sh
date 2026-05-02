@@ -10,7 +10,7 @@ set -euo pipefail
 # Optional:
 # - UPTIMEROBOT_MONITOR_NAME: friendly name for the monitor
 # - UPTIMEROBOT_ALERT_CONTACTS: dash-separated alert contact IDs, e.g. "123456-789012"
-# - UPTIMEROBOT_INTERVAL: monitoring interval in minutes (subject to account limits)
+# - UPTIMEROBOT_INTERVAL: monitoring interval in seconds (default: 300 = 5 min; min: 30)
 
 API_URL="https://api.uptimerobot.com/v2"
 API_KEY="${UPTIMEROBOT_API_KEY:-}"
@@ -36,7 +36,7 @@ SPACE_HOST_CLEAN="${SPACE_HOST_CLEAN%%/*}"
 
 MONITOR_URL="https://${SPACE_HOST_CLEAN}/health"
 MONITOR_NAME="${UPTIMEROBOT_MONITOR_NAME:-HuggingPost ${SPACE_HOST_CLEAN}}"
-INTERVAL="${UPTIMEROBOT_INTERVAL:-5}"
+INTERVAL="${UPTIMEROBOT_INTERVAL:-300}"
 
 echo "Checking existing UptimeRobot monitors for ${MONITOR_URL}..."
 MONITORS_RESPONSE=$(curl -sS -X POST "${API_URL}/getMonitors" \

@@ -6,7 +6,7 @@
 // Routing rules (in order):
 //   /health, /status, /uptimerobot/setup → handled here
 //   / (exact)                            → HuggingPost dashboard HTML
-//   /app or /app/*                       → Postiz (nginx :5000), /app prefix stripped
+//   /app, /app/ or /app/*               → Postiz (nginx :5000), /app prefix stripped
 //   /_next/* or /static/*                → 301 redirect to /app/<same path>
 //                                          (catches asset URLs Next.js may emit
 //                                           without basePath in edge cases)
@@ -569,19 +569,10 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── /app (exact root) → redirect to /app/auth/ ───────────────────────────
-  // nginx:5000's location / proxies to Next.js as GET /app/ but Next.js
-  // returns an empty 200 for the bare root — middleware redirect never fires.
-  // Short-circuit at this layer: send the browser straight to /app/auth/;
-  // Next.js middleware will redirect to /app/launches/ if already logged in.
-  if (pathname === "/app" || pathname === "/app/") {
-    res.writeHead(302, { Location: "/app/auth/" });
-    res.end();
-    return;
-  }
-
-  // ── /app/* → serve public static files from disk, proxy the rest ────────
-  if (pathname.startsWith("/app/")) {
+  // ── /app, /app/ and /app/* → proxy to nginx (Next.js handles routing) ────
+  // Do NOT short-circuit /app/ to /app/auth/ here — Next.js middleware does
+  // the right thing: auth cookie present → /launches, absent → /auth/.
+  if (pathname === "/app" || pathname.startsWith("/app/")) {
     const stripped = pathname.slice("/app".length) || "/";
     const query = parsedUrl.search || "";
 
