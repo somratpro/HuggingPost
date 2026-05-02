@@ -61,9 +61,14 @@ export PGPASSWORD="${DB_PASSWORD}"
 # include /app/api so frontend code calls the right path; health-server
 # strips /app before passing to nginx :5000, which then routes /api → backend
 # (port 3000) and /uploads → file system.
+#
+# FRONTEND_URL must be the bare origin (scheme+host, NO /app path suffix).
+# The backend uses this for the CORS allow-origin response header. Browsers
+# send Origin: https://host (no path), so including /app causes a mismatch
+# and blocks every API call (login, signup, etc.).
 export DATABASE_URL="${DATABASE_URL:-postgresql://postiz:${DB_PASSWORD}@localhost:5432/postiz}"
 export REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
-export FRONTEND_URL="${FRONTEND_URL:-${PUBLIC_URL}/app}"
+export FRONTEND_URL="${FRONTEND_URL:-${PUBLIC_URL}}"
 export NEXT_PUBLIC_BACKEND_URL="${NEXT_PUBLIC_BACKEND_URL:-${PUBLIC_URL}/app/api}"
 export BACKEND_INTERNAL_URL="${BACKEND_INTERNAL_URL:-http://localhost:3000}"
 export STORAGE_PROVIDER="${STORAGE_PROVIDER:-local}"
@@ -230,6 +235,12 @@ fi
 # ── Health server (public port 7860) ─────────────────────────────────────────
 node /opt/healthsrv/health-server.js &
 HEALTH_PID=$!
+
+if [ -n "${UPTIMEROBOT_API_KEY:-}" ] && [ -n "${SPACE_HOST:-}" ]; then
+  echo "Setting up UptimeRobot monitor..."
+  bash /opt/setup-uptimerobot.sh "${SPACE_HOST}" || true
+fi
+
 sleep 1
 
 # ── Postiz: nginx + PM2 (mirrors upstream CMD `nginx && pnpm run pm2`) ───────

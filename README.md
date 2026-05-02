@@ -55,7 +55,7 @@ secrets:
 - 📅 **30+ Social Platforms** — schedule posts to X, LinkedIn, Facebook, Threads, TikTok, YouTube, Reddit, Mastodon, Discord, Slack, Pinterest, etc.
 - ⚡ **One-click deploy** — duplicate the Space, add `HF_TOKEN`, you're done.
 - 💾 **Persistent across restarts** — PostgreSQL + uploaded media auto-backed up to a private HF Dataset every 5 min and restored on boot.
-- 💓 **Keep-Alive** — built-in dashboard helper to set up an UptimeRobot monitor so scheduled posts actually fire.
+- 💓 **Keep-Alive** — add `UPTIMEROBOT_API_KEY` as a Space secret and the monitor is created automatically at boot.
 - 🌐 **Outbound firewall workaround** — optional Cloudflare Worker proxy auto-provisioned for blocked platform APIs.
 - 🔒 **Secrets generated** — `JWT_SECRET` auto-generated on first boot and persisted, no manual setup.
 - 🏠 **100% HF-Native** — no external Postgres/Redis/storage accounts needed for the default path.
@@ -88,7 +88,7 @@ Land on the HuggingPost dashboard. Click **Open Postiz →** to reach the login 
 
 ### Step 5: Set Up Keep-Alive (1 min)
 
-On the dashboard, paste your UptimeRobot **Main API key** to create an external monitor that pings `/health` every 5 min. Without this, the Space will sleep and scheduled posts won't fire.
+Add your [UptimeRobot](https://uptimerobot.com) **Main API key** as a Space secret named `UPTIMEROBOT_API_KEY`. HuggingPost will automatically create a monitor that pings `/health` every 5 min at boot. Without this, the Space will sleep and scheduled posts won't fire.
 
 ## 🔑 Configuration
 
@@ -151,9 +151,7 @@ huggingface-cli download --repo-type dataset <your-username>/huggingpost-backup
 
 ## 💓 Keep It Awake
 
-Free HF Spaces sleep after ~48h of no traffic. A sleeping Space cannot fire scheduled posts. The dashboard has a one-time setup form for [UptimeRobot](https://uptimerobot.com) — create a free account, copy your **Main API key** (NOT a Read-only or Monitor-specific key), paste it in the dashboard.
-
-This works for **public** Spaces only. Private Spaces cannot be reached by external monitors.
+Free HF Spaces sleep after ~48h of no traffic. A sleeping Space cannot fire scheduled posts. Add your [UptimeRobot](https://uptimerobot.com) **Main API key** (NOT a Read-only or Monitor-specific key) as a Space secret named `UPTIMEROBOT_API_KEY`. HuggingPost will automatically create the monitor at boot. The dashboard shows the current status.
 
 ## 🌐 Cloudflare Proxy *(Optional)*
 
@@ -165,7 +163,7 @@ Hugging Face Spaces sometimes block outbound HTTP to specific social-platform AP
 2. Add `CLOUDFLARE_WORKERS_TOKEN` as a Space secret.
 3. Restart the Space.
 
-HuggingPost will create or update a Worker named `<your-space-host>-proxy` and route blocked outbound traffic through it transparently. You can scope it with `CLOUDFLARE_PROXY_DOMAINS` (default `*` = all external).
+HuggingPost will create or update a Worker named `<your-space-host>-proxy` and route blocked outbound traffic through it transparently. You can add extra domains with `CLOUDFLARE_PROXY_DOMAINS` (comma-separated, merged with built-in defaults). Set to `*` to proxy all external traffic.
 
 ## 🔌 Connecting Social Accounts
 
@@ -203,8 +201,8 @@ HuggingPost/
 
 | Path | Target | Notes |
 | :--- | :--- | :--- |
-| `/` | HuggingPost dashboard (local) | Status + UptimeRobot setup |
-| `/health`, `/status`, `/uptimerobot/setup` | local | JSON handlers |
+| `/` | HuggingPost dashboard (local) | Status + UptimeRobot badge |
+| `/health`, `/status` | local | JSON handlers |
 | `/app` or `/app/*` | Postiz nginx `:5000` | `/app` stripped — Next.js built with `basePath="/app"` |
 | `/_next/*`, `/static/*` | 301 → `/app/<path>` | Catches absolute-URL leaks |
 | anything else | 404 | — |
@@ -240,7 +238,7 @@ On restarts after the first boot, wait 30–90 s for PM2 processes to come up. C
 Either move media to Cloudflare R2 (`STORAGE_PROVIDER=cloudflare`) or raise `SYNC_MAX_FILE_BYTES`. The HF Dataset itself supports much larger files, but huge backups slow restart.
 
 **Scheduled posts didn't fire while I was away**
-The Space slept. Set up UptimeRobot from the dashboard.
+The Space slept. Add `UPTIMEROBOT_API_KEY` as a Space secret to enable automatic keep-awake monitoring.
 
 **OAuth callback fails for X/Facebook/LinkedIn**
 Some platforms reject `*.hf.space` subdomains as redirect URIs. You may need to put a custom domain in front (Cloudflare → HF Space CNAME).
