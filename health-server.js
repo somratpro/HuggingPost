@@ -683,6 +683,10 @@ function proxyHttp(req, res, overridePath) {
       const outHeaders = Object.assign({}, proxyRes.headers);
       const fixedLoc = rewriteLocation(outHeaders["location"]);
       if (fixedLoc !== outHeaders["location"]) outHeaders["location"] = fixedLoc;
+      // Debug: log unexpected empty responses from nginx
+      if (proxyRes.statusCode === 200 && !outHeaders["content-type"] && !outHeaders["x-powered-by"]) {
+        console.warn(`[proxy-debug] ${req.method} ${targetPath} → nginx:${POSTIZ_PORT} → status=${proxyRes.statusCode} headers=${JSON.stringify(outHeaders)}`);
+      }
       res.writeHead(proxyRes.statusCode || 502, outHeaders);
       proxyRes.pipe(res);
     },
