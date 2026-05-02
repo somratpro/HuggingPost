@@ -22,8 +22,22 @@ const http = require("http");
 const https = require("https");
 const fs = require("fs");
 const net = require("net");
+const path = require("path");
 
 const PORT = 7860;
+
+// Static files in Next.js public/ directory are served directly from disk.
+// The nginx proxy chain re-adds the /app basePath prefix when forwarding to
+// Next.js:4200, making public file paths misalign. Serving from disk here
+// is simpler and faster.
+const NEXTJS_PUBLIC_DIR = "/app/apps/frontend/public";
+const MIME_TYPES = {
+  ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+  ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
+  ".ico": "image/x-icon", ".woff": "font/woff", ".woff2": "font/woff2",
+  ".ttf": "font/ttf", ".eot": "application/vnd.ms-fontobject",
+  ".txt": "text/plain; charset=utf-8", ".xml": "application/xml",
+};
 const POSTIZ_HOST = "127.0.0.1";
 const POSTIZ_PORT = 5000;
 
@@ -840,10 +854,36 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── /app/* → strip prefix, proxy to Postiz nginx :5000 ──────────────────
+  // ── /app/* → serve public static files from disk, proxy the rest ────────
   if (pathname.startsWith("/app/")) {
     const stripped = pathname.slice("/app".length) || "/";
     const query = parsedUrl.search || "";
+
+    // Static files in Next.js public/ land here with /app/ prefix (basePath).
+    // Serve them directly from disk instead of proxying through nginx so the
+    // path mismatch introduced by the nginx /app/ re-add patch doesn't matter.
+    // _next/ bundles are NOT in public/ — skip them and proxy normally.
+    const ext = path.extname(stripped).toLowerCase();
+    if (ext && !stripped.startsWith("/_next/") && MIME_TYPES[ext]) {
+      const absPath = path.resolve(NEXTJS_PUBLIC_DIR, "." + stripped);
+      if (absPath.startsWith(NEXTJS_PUBLIC_DIR + path.sep)) {
+        const stream = fs.createReadStream(absPath);
+        stream.once("open", () => {
+          res.writeHead(200, {
+            "Content-Type": MIME_TYPES[ext],
+            "Cache-Control": "public, max-age=86400",
+          });
+          stream.pipe(res);
+        });
+        stream.once("error", () => {
+          // File not in public/ — fall through to nginx proxy.
+          if (!res.headersSent) proxyHttp(req, res, stripped + query);
+          else res.destroy();
+        });
+        return;
+      }
+    }
+
     proxyHttp(req, res, stripped + query);
     return;
   }
