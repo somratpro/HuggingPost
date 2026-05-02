@@ -772,6 +772,38 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── /debug-proxy — probe nginx:5000 directly ─────────────────────────────
+  // Returns raw status, headers, and body from nginx for any given path.
+  // Usage: /debug-proxy?path=/  or  /debug-proxy?path=/app/
+  if (pathname === "/debug-proxy") {
+    const targetPath = parsedUrl.searchParams.get("path") || "/";
+    void (async () => {
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const preq = http.request(
+            { hostname: POSTIZ_HOST, port: POSTIZ_PORT, method: "GET", path: targetPath,
+              headers: { host: `${POSTIZ_HOST}:${POSTIZ_PORT}`, accept: "*/*", "user-agent": "debug-proxy/1.0" } },
+            (pres) => {
+              let body = "";
+              pres.setEncoding("utf8");
+              pres.on("data", (c) => { body += c; if (body.length > 4096) body = body.slice(0, 4096) + "…"; });
+              pres.on("end", () => resolve({ status: pres.statusCode, headers: pres.headers, body, bodyLen: body.length }));
+            },
+          );
+          preq.on("error", reject);
+          preq.setTimeout(5000, () => preq.destroy(new Error("timeout")));
+          preq.end();
+        });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(result, null, 2));
+      } catch (e) {
+        res.writeHead(502, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: String(e) }));
+      }
+    })();
+    return;
+  }
+
   // ── /uptimerobot/setup ───────────────────────────────────────────────────
   if (pathname === "/uptimerobot/setup") {
     if (req.method !== "POST") {
