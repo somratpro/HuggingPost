@@ -858,9 +858,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── Anything else → 404 ──────────────────────────────────────────────────
-  res.writeHead(404, { "Content-Type": "text/plain" });
-  res.end("Not found. Try / for the dashboard or /app for Postiz.");
+  // ── Anything else → redirect to /app<path> ──────────────────────────────
+  // After login, Postiz's client-side router may navigate to a path without
+  // the /app basePath prefix (e.g. /launches, /analytics, /api/...).
+  // Redirect those here rather than 404-ing so the browser lands correctly.
+  res.writeHead(302, { Location: "/app" + pathname + (parsedUrl.search || "") });
+  res.end();
 });
 
 server.on("upgrade", (req, socket, head) => {

@@ -63,6 +63,16 @@ RUN sed -i "s|const nextConfig = {|const nextConfig = {\n  basePath: '/app',\n  
     && grep -q "swcMinify: false" apps/frontend/next.config.js \
     && grep -q "cpus: 1" apps/frontend/next.config.js \
     || (echo "PATCH FAILED — next.config.js shape changed upstream"; exit 1)
+# Patch: disable Next.js image optimisation.
+# With basePath="/app", the _next/image optimizer fetches static files from
+# Next.js's internal URL without the basePath prefix, causing 400 errors.
+# unoptimized:true makes <Image> render as plain <img> tags; the browser
+# fetches /app/auth/avatars/… which routes correctly through nginx.
+# If Postiz already has an images:{} block, inject unoptimized inside it;
+# otherwise add a new images block at the top of nextConfig.
+RUN grep -q 'images:' apps/frontend/next.config.js \
+    && sed -i 's|images: {|images: {\n    unoptimized: true,|' apps/frontend/next.config.js \
+    || sed -i "s|const nextConfig = {|const nextConfig = {\n  images: { unoptimized: true },|" apps/frontend/next.config.js
 
 ENV SENTRY_DSN="" \
     SENTRY_AUTH_TOKEN="" \
