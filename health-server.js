@@ -683,10 +683,6 @@ function proxyHttp(req, res, overridePath) {
       const outHeaders = Object.assign({}, proxyRes.headers);
       const fixedLoc = rewriteLocation(outHeaders["location"]);
       if (fixedLoc !== outHeaders["location"]) outHeaders["location"] = fixedLoc;
-      // Debug: log unexpected empty responses from nginx
-      if (proxyRes.statusCode === 200 && !outHeaders["content-type"] && !outHeaders["x-powered-by"]) {
-        console.warn(`[proxy-debug] ${req.method} ${targetPath} → nginx:${POSTIZ_PORT} → status=${proxyRes.statusCode} headers=${JSON.stringify(outHeaders)}`);
-      }
       res.writeHead(proxyRes.statusCode || 502, outHeaders);
       proxyRes.pipe(res);
     },
@@ -772,38 +768,6 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── /debug-proxy — probe nginx:5000 directly ─────────────────────────────
-  // Returns raw status, headers, and body from nginx for any given path.
-  // Usage: /debug-proxy?path=/  or  /debug-proxy?path=/app/
-  if (pathname === "/debug-proxy") {
-    const targetPath = parsedUrl.searchParams.get("path") || "/";
-    void (async () => {
-      try {
-        const result = await new Promise((resolve, reject) => {
-          const preq = http.request(
-            { hostname: POSTIZ_HOST, port: POSTIZ_PORT, method: "GET", path: targetPath,
-              headers: { host: `${POSTIZ_HOST}:${POSTIZ_PORT}`, accept: "*/*", "user-agent": "debug-proxy/1.0" } },
-            (pres) => {
-              let body = "";
-              pres.setEncoding("utf8");
-              pres.on("data", (c) => { body += c; if (body.length > 4096) body = body.slice(0, 4096) + "…"; });
-              pres.on("end", () => resolve({ status: pres.statusCode, headers: pres.headers, body, bodyLen: body.length }));
-            },
-          );
-          preq.on("error", reject);
-          preq.setTimeout(5000, () => preq.destroy(new Error("timeout")));
-          preq.end();
-        });
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(result, null, 2));
-      } catch (e) {
-        res.writeHead(502, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: String(e) }));
-      }
-    })();
-    return;
-  }
-
   // ── /uptimerobot/setup ───────────────────────────────────────────────────
   if (pathname === "/uptimerobot/setup") {
     if (req.method !== "POST") {
@@ -865,8 +829,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── /app or /app/* → strip prefix, proxy to Postiz nginx :5000 ───────────
-  if (pathname === "/app" || pathname.startsWith("/app/")) {
+  // ── /app (exact root) → redirect to /app/auth/ ───────────────────────────
+  // nginx:5000's location / proxies to Next.js as GET /app/ but Next.js
+  // returns an empty 200 for the bare root — middleware redirect never fires.
+  // Short-circuit at this layer: send the browser straight to /app/auth/;
+  // Next.js middleware will redirect to /app/launches/ if already logged in.
+  if (pathname === "/app" || pathname === "/app/") {
+    res.writeHead(302, { Location: "/app/auth/" });
+    res.end();
+    return;
+  }
+
+  // ── /app/* → strip prefix, proxy to Postiz nginx :5000 ──────────────────
+  if (pathname.startsWith("/app/")) {
     const stripped = pathname.slice("/app".length) || "/";
     const query = parsedUrl.search || "";
     proxyHttp(req, res, stripped + query);

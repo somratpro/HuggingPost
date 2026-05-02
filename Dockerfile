@@ -126,6 +126,13 @@ COPY --from=postiz-builder /build /app
 #   Without the patch, nginx sends /auth/login → Next.js returns 404.
 #   With the patch, nginx sends /app/auth/login → Next.js handles it correctly.
 COPY --from=postiz-builder /build/var/docker/nginx.conf /etc/nginx/nginx.conf
+# Patch 1: re-add /app basePath when proxying to Next.js (port 4200).
+#   health-server strips /app before forwarding to nginx, but Next.js is built
+#   with basePath="/app" so it expects paths prefixed with /app.
+# Patch 2: add an explicit location = / block that redirects to /app/ so
+#   the bare root doesn't return an empty 200 from nginx's default handler.
+#   (health-server already short-circuits /app/ before reaching nginx, but
+#    this makes nginx self-consistent for any direct curl / health checks.)
 RUN sed -i 's|proxy_pass http://127.0.0.1:4200/;|proxy_pass http://127.0.0.1:4200/app/;|; s|proxy_pass http://localhost:4200/;|proxy_pass http://localhost:4200/app/;|' /etc/nginx/nginx.conf \
     && grep -q '/app/' /etc/nginx/nginx.conf \
     || (echo "NGINX PATCH FAILED — upstream nginx.conf format changed"; cat /etc/nginx/nginx.conf; exit 1)
