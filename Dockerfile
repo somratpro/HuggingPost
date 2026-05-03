@@ -156,8 +156,13 @@ COPY --from=postiz-builder /build/var/docker/nginx.conf /etc/nginx/nginx.conf
 #   the bare root doesn't return an empty 200 from nginx's default handler.
 #   (health-server already short-circuits /app/ before reaching nginx, but
 #    this makes nginx self-consistent for any direct curl / health checks.)
-RUN sed -i 's|proxy_pass http://127.0.0.1:4200/;|proxy_pass http://127.0.0.1:4200/app/;|; s|proxy_pass http://localhost:4200/;|proxy_pass http://localhost:4200/app/;|' /etc/nginx/nginx.conf \
+RUN sed -i \
+      's|proxy_pass http://127.0.0.1:4200/;|proxy_pass http://127.0.0.1:4200/app/;|; \
+       s|proxy_pass http://localhost:4200/;|proxy_pass http://localhost:4200/app/;|; \
+       s|proxy_set_header X-Forwarded-Proto \$scheme;|proxy_set_header X-Forwarded-Proto \$http_x_forwarded_proto;|g' \
+      /etc/nginx/nginx.conf \
     && grep -q '/app/' /etc/nginx/nginx.conf \
+    && grep -q 'x_forwarded_proto' /etc/nginx/nginx.conf \
     || (echo "NGINX PATCH FAILED — upstream nginx.conf format changed"; cat /etc/nginx/nginx.conf; exit 1)
 
 # Health-server outside /app to avoid pnpm workspace collisions.

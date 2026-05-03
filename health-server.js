@@ -426,27 +426,36 @@ function buildProxyHeaders(headers) {
 
 function rewriteLocation(loc) {
   // Postiz's Next.js middleware redirects without the basePath prefix (/app)
-  // and may use an internal hostname (127.0.0.1:NGINX_PORT) that HF Spaces'
-  // reverse proxy blocks (returning 200 empty body instead of the redirect).
+  // and may use an internal hostname (127.0.0.1:NGINX_PORT) or the public
+  // HF Space hostname (SPACE_HOST). The HF Spaces reverse proxy intercepts
+  // absolute redirects to its own hostname — it resolves them server-side
+  // and returns 200 at the original URL (blank white page for the client).
   //
   // Normalise every Location header from the Postiz nginx proxy:
-  //   1. If it's an absolute URL to an internal host → extract the path.
+  //   1. If it's an absolute URL to an internal or own-Space host → extract path.
   //   2. If the resulting path doesn't start with /app → prepend /app.
   //
+  // This converts absolute redirects to relative ones so the browser
+  // (not HF proxy) navigates and the URL bar updates correctly.
+  //
   // Examples:
-  //   http://127.0.0.1:5000/auth/login  → /app/auth/login
-  //   http://localhost:4200/auth         → /app/auth
-  //   /auth/login                        → /app/auth/login
-  //   /app/auth/login                    → /app/auth/login  (unchanged)
-  //   https://twitter.com/oauth/...      → unchanged (external host)
+  //   http://127.0.0.1:5000/auth/login              → /app/auth/login
+  //   https://somratpro-huggingpost.hf.space/auth   → /app/auth
+  //   /auth/login                                    → /app/auth/login
+  //   /app/auth/login                                → /app/auth/login (unchanged)
+  //   https://twitter.com/oauth/...                  → unchanged (external)
   if (!loc) return loc;
+  const spaceHost = process.env.SPACE_HOST || null; // e.g. somratpro-huggingpost.hf.space
   let path = null;
   if (loc.startsWith("/")) {
     path = loc;
   } else {
     try {
       const u = new URL(loc);
-      if (/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(u.host)) {
+      if (
+        /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(u.host) ||
+        (spaceHost && u.hostname === spaceHost)
+      ) {
         path = u.pathname + u.search + u.hash;
       }
     } catch {}
