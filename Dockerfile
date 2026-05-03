@@ -181,7 +181,6 @@ COPY health-server.js /opt/healthsrv/health-server.js
 COPY postiz-sync.py /opt/postiz-sync.py
 COPY cloudflare-proxy.js /opt/cloudflare-proxy.js
 COPY cloudflare-proxy-setup.py /opt/cloudflare-proxy-setup.py
-COPY cloudflare-worker.js /opt/cloudflare-worker.js
 COPY cloudflare-keepalive-setup.py /opt/cloudflare-keepalive-setup.py
 
 # Vendor fonts + patch script available at runtime.

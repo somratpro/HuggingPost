@@ -174,7 +174,6 @@ HuggingPost/
 ├── postiz-sync.py           # Backup/restore DB + uploads to HF Dataset
 ├── cloudflare-proxy.js      # Transparent outbound proxy injected via NODE_OPTIONS
 ├── cloudflare-proxy-setup.py
-├── cloudflare-worker.js
 ├── cloudflare-keepalive-setup.py
 ├── docker-compose.yml       # Local dev convenience
 ├── .env.example             # Configuration reference
