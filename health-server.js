@@ -101,7 +101,7 @@ function getSocialPlatforms() {
 // Returns detailed per-platform OAuth setup guide data.
 // publicUrl: "https://somratpro-huggingpost.hf.space" (no trailing slash)
 function getOAuthPlatformDetails(publicUrl) {
-  const cb = (provider) => `${publicUrl}/app/integrations/social/${provider}`;
+  const cb = (provider) => `${publicUrl}/integrations/social/${provider}`;
   const e = process.env;
   return [
     {
@@ -1078,9 +1078,17 @@ const server = http.createServer((req, res) => {
   }
 
   // ── /app, /app/ and /app/* → proxy to nginx (Next.js handles routing) ────
-  // Do NOT short-circuit /app/ to /app/auth/ here — Next.js middleware does
-  // the right thing: auth cookie present → /launches, absent → /auth/.
-  if (pathname === "/app" || pathname.startsWith("/app/")) {
+  if (pathname === "/app" || pathname === "/app/") {
+    // Postiz Next.js root redirect to /launches sometimes fails with basePath 
+    // + trailingSlash:true, leaving users on a blank /app/ page after signup.
+    // Force the redirect here. Next.js middleware will still redirect to
+    // /auth/login if they aren't authenticated yet.
+    res.writeHead(302, { Location: "/app/launches/" + (parsedUrl.search || "") });
+    res.end();
+    return;
+  }
+
+  if (pathname.startsWith("/app/")) {
     const stripped = pathname.slice("/app".length) || "/";
     const query = parsedUrl.search || "";
 

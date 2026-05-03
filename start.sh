@@ -248,9 +248,10 @@ fi
 SYNC_PID=""
 if [ -n "${HF_TOKEN:-}" ]; then
     (
+        sleep 60  # Initial backup 60s after boot to save setup (signup, keys)
         while true; do
-            sleep "$SYNC_INTERVAL"
             python3 /opt/postiz-sync.py sync 2>&1 || true
+            sleep "$SYNC_INTERVAL"
         done
     ) &
     SYNC_PID=$!
