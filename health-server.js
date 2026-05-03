@@ -101,7 +101,7 @@ function getSocialPlatforms() {
 // Returns detailed per-platform OAuth setup guide data.
 // publicUrl: "https://somratpro-huggingpost.hf.space" (no trailing slash)
 function getOAuthPlatformDetails(publicUrl) {
-  const cb = (provider) => `${publicUrl}/app/api/auth/connect/${provider}/callback`;
+  const cb = (provider) => `${publicUrl}/app/integrations/social/${provider}`;
   const e = process.env;
   return [
     {
@@ -135,12 +135,11 @@ function getOAuthPlatformDetails(publicUrl) {
         { name: "X_API_SECRET",     desc: "API Secret (Consumer Secret)", set: !!e.X_API_SECRET },
       ],
       steps: [
-        { title: "Create an X Developer App", body: 'Apply for a developer account if you don\'t have one. Create a new project + app.' },
-        { title: "Enable OAuth 1.0a", body: 'In <strong>User authentication settings</strong>, enable <strong>OAuth 1.0a</strong>. Set type to <strong>Web App</strong>.' },
-        { title: "Add callback URL", body: 'Under Callback URI / Redirect URL, paste the callback URL below.' },
-        { title: "Set permissions", body: 'Set app permissions to <strong>Read and Write</strong> (or Read, Write and Direct Messages).' },
-        { title: "Copy credentials", body: 'From Keys and Tokens tab, copy <strong>API Key</strong> and <strong>API Key Secret</strong>.' },
-        { title: "Add to Space secrets", body: 'Add both env vars below to your HF Space settings, then restart.' },
+        { title: "Create an X Developer App", body: 'Apply for a developer account at <a href="https://developer.twitter.com" target="_blank" rel="noopener" style="color:#f472b6">developer.twitter.com</a> if you don\'t have one. Create a new project + app.' },
+        { title: "Enable OAuth 1.0a + set permissions", body: 'On your app page → <strong>User authentication settings → Set up</strong>. Enable <strong>OAuth 1.0a</strong>. Set App permissions to <strong>Read and Write</strong>. Set Type of App to <strong>Native App</strong> (⚠️ must be Native App, not Web App — Web App breaks OAuth 1.0a).' },
+        { title: "Add callback URL", body: 'In the same setup screen, under <strong>Callback URI / Redirect URL</strong>, paste the Callback URL shown below.' },
+        { title: "Get your Consumer Secret", body: '<strong>⚠️ The Consumer Secret (X_API_SECRET) is only shown once</strong> — right after app creation, or after you click <strong>Regenerate</strong> on the Consumer Key row in the Keys &amp; Tokens tab.<br><br>If you don\'t have it saved: go to <strong>Keys &amp; Tokens → OAuth 1.0 Keys → Regenerate</strong>. Copy <em>both</em> the new Consumer Key and Consumer Secret that appear in the popup.' },
+        { title: "Add to Space secrets", body: 'Add both env vars below to your HF Space settings → Variables &amp; Secrets, then restart the Space.' },
       ],
     },
     {
@@ -754,7 +753,7 @@ code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-siz
 
   <!-- Open Postiz button -->
   ${initialData.postizRunning
-    ? `<a href="/app/" class="open-btn" target="_blank" rel="noopener">Open Postiz →</a>`
+    ? `<a href="/app/auth" class="open-btn" target="_blank" rel="noopener">Open Postiz →</a>`
     : `<a href="#" class="open-btn booting" onclick="return false">⏳ Postiz is starting up (first boot ~5 min)…</a>`}
 
   <!-- Status row -->
@@ -875,7 +874,7 @@ async function refresh() {
     if (btn && running && btn.classList.contains('booting')) {
       btn.classList.remove('booting');
       btn.textContent = 'Open Postiz →';
-      btn.href = '/app/';
+      btn.href = '/app/auth';
       btn.onclick = null;
     }
 

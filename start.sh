@@ -86,7 +86,7 @@ export NODE_ENV="${NODE_ENV:-production}"
 export NOT_SECURED="${NOT_SECURED:-true}"
 
 # Sync config
-export SYNC_INTERVAL="${SYNC_INTERVAL:-300}"
+export SYNC_INTERVAL="${SYNC_INTERVAL:-3600}"  # 60 minutes (override with SYNC_INTERVAL secret)
 export SYNC_MAX_FILE_BYTES="${SYNC_MAX_FILE_BYTES:-524288000}"  # 500 MB (default; covers .next + DB + uploads)
 export BACKUP_DATASET_NAME="${BACKUP_DATASET_NAME:-huggingpost-backup}"
 
@@ -272,7 +272,9 @@ sleep 1
 #                      && pnpm run --parallel pm2 && pm2 logs
 echo "Starting nginx + Postiz PM2 procs..."
 cd "${POSTIZ_DIR}"
-( nginx && pnpm run pm2 2>&1 | sed 's/^/[postiz] /' ) &
+( nginx && pnpm run pm2 2>&1 | grep -Ev \
+    '\[RoutesResolver\]|\[RouterExplorer\]|Mapped \{|\(Use --lines|__/\\\\|_\\/\\\\|PM2 log:|Progress: resolved|[┌┐└┘├┤│─┼]|Runtime Edition|Production Process Manager|built-in Load Balancer|Start and Daemonize|Load Balance|Make pm2 auto-boot|To go further|pm2\.io|pm2 monitor|pm2 startup|pm2 start ' \
+  | sed 's/^/[postiz] /' ) &
 POSTIZ_PID=$!
 
 echo "Waiting for nginx (port 5000)..."

@@ -88,7 +88,7 @@ Add your [UptimeRobot](https://uptimerobot.com) **Main API key** as a Space secr
 
 | Variable | Default | Purpose |
 | :--- | :--- | :--- |
-| `SYNC_INTERVAL` | `300` | Backup interval in seconds (5 min) |
+| `SYNC_INTERVAL` | `3600` | Backup interval in seconds (1 hour) |
 | `BACKUP_DATASET_NAME` | `huggingpost-backup` | Private dataset name (`<user>/<name>`) |
 | `RESEND_API_KEY` | — | Required only if you want signup activation emails |
 
