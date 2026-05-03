@@ -102,7 +102,7 @@ echo "Dashboard    : ${PUBLIC_URL}/"
 echo "Postiz UI    : ${PUBLIC_URL}/app/"
 echo "Postiz API   : ${PUBLIC_URL}/app/api/"
 echo "Sync every   : ${SYNC_INTERVAL}s"
-echo "HF backup    : ${HF_TOKEN:+enabled}${HF_TOKEN:-disabled (no HF_TOKEN)}"
+echo "HF backup    : $([ -n "${HF_TOKEN:-}" ] && echo 'enabled' || echo 'disabled (no HF_TOKEN)')"
 echo ""
 
 # ── Postgres ─────────────────────────────────────────────────────────────────
@@ -167,6 +167,23 @@ if [ -n "${HF_TOKEN:-}" ]; then
 else
     echo "HF_TOKEN not set — running without backup persistence"
     echo "   Add HF_TOKEN as a Space secret to enable DB+uploads backup."
+fi
+
+# ── Patch next/font/google → next/font/local (runtime safety net) ────────────
+# Docker Stage 1 may be cached from before this patch was introduced.
+# Apply here unconditionally so the cached image is fixed at container start.
+# No-op if layout.tsx already uses next/font/local (idempotent grep check).
+_APP_LAYOUT="${POSTIZ_DIR}/apps/frontend/src/app/(app)/layout.tsx"
+if grep -q "next/font/google" "${_APP_LAYOUT}" 2>/dev/null; then
+    echo "Patching next/font/google → next/font/local (cached image lacks build-time patch)..."
+    mkdir -p "${POSTIZ_DIR}/apps/frontend/src/fonts"
+    cp /opt/vendor/fonts/*.woff2 "${POSTIZ_DIR}/apps/frontend/src/fonts/"
+    cd "${POSTIZ_DIR}"
+    node /opt/vendor/patch-jakarta-font.js
+    cd /
+    echo "Font patch applied."
+else
+    echo "Font patch: layout.tsx already uses next/font/local — skipping."
 fi
 
 # ── Build Next.js frontend (first boot or after next.config.js change) ───────

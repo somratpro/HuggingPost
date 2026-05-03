@@ -179,6 +179,16 @@ COPY cloudflare-proxy-setup.py /opt/cloudflare-proxy-setup.py
 COPY cloudflare-worker.js /opt/cloudflare-worker.js
 COPY setup-uptimerobot.sh /opt/setup-uptimerobot.sh
 
+# Vendor fonts + patch script available at runtime.
+# Stage 1 may be cached from before the font patch was added; start.sh applies
+# the patch at container start if layout.tsx still imports next/font/google.
+COPY vendor/fonts/PlusJakartaSans-500-normal.woff2 \
+     vendor/fonts/PlusJakartaSans-500-italic.woff2 \
+     vendor/fonts/PlusJakartaSans-600-normal.woff2 \
+     vendor/fonts/PlusJakartaSans-600-italic.woff2 \
+     /opt/vendor/fonts/
+COPY vendor/patch-jakarta-font.js /opt/vendor/patch-jakarta-font.js
+
 RUN chmod +x /opt/start.sh /opt/setup-uptimerobot.sh
 
 EXPOSE 7860
