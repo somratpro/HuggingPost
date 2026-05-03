@@ -78,6 +78,12 @@ export NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY="${NEXT_PUBLIC_UPLOAD_STATIC_DIRECTOR
 export IS_GENERAL="${IS_GENERAL:-true}"
 export NX_ADD_PLUGINS="${NX_ADD_PLUGINS:-false}"
 export NODE_ENV="${NODE_ENV:-production}"
+# HF Space proxy rewrites Set-Cookie Domain to .hf.space which is a public
+# suffix — browsers reject such cookies. NOT_SECURED=true makes the backend
+# also send the JWT as an `auth` response header; the frontend JS reads it
+# and sets the cookie via document.cookie (no domain attr) so it lands on
+# the exact hostname and the browser accepts it.
+export NOT_SECURED="${NOT_SECURED:-true}"
 
 # Sync config
 export SYNC_INTERVAL="${SYNC_INTERVAL:-300}"

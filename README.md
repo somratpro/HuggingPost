@@ -10,24 +10,10 @@ license: agpl-3.0
 secrets:
   - name: HF_TOKEN
     description: HF token with WRITE access — enables DB+uploads backup persistence to a private HF Dataset.
-  - name: JWT_SECRET
-    description: (Optional) Random 48-byte string. Auto-generated on first boot and persisted to backup.
   - name: CLOUDFLARE_WORKERS_TOKEN
-    description: (Optional) Cloudflare API token (Workers Scripts → Edit) to auto-provision an outbound proxy.
-  - name: RESEND_API_KEY
-    description: (Optional) Resend key for sending email activation links. Without it, registration is auto-activated.
-  - name: STORAGE_PROVIDER
-    description: (Optional) "local" (default) or "cloudflare" to offload media to R2.
-  - name: CLOUDFLARE_ACCOUNT_ID
-    description: (Optional, if STORAGE_PROVIDER=cloudflare) R2 account ID.
-  - name: CLOUDFLARE_ACCESS_KEY
-    description: (Optional, if STORAGE_PROVIDER=cloudflare) R2 access key ID.
-  - name: CLOUDFLARE_SECRET_ACCESS_KEY
-    description: (Optional, if STORAGE_PROVIDER=cloudflare) R2 secret access key.
-  - name: CLOUDFLARE_BUCKETNAME
-    description: (Optional, if STORAGE_PROVIDER=cloudflare) R2 bucket name.
-  - name: CLOUDFLARE_BUCKET_URL
-    description: (Optional, if STORAGE_PROVIDER=cloudflare) R2 public bucket URL.
+    description: Cloudflare API token to auto-provision an outbound proxy.
+  - name: UPTIMEROBOT_API_KEY
+    description: UptimeRobot API key for automatic monitor setup.
 ---
 
 [![GitHub Stars](https://img.shields.io/github/stars/somratpro/huggingpost?style=flat-square)](https://github.com/somratpro/huggingpost)
