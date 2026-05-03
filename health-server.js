@@ -43,8 +43,7 @@ const POSTIZ_PORT = 5000;
 const startTime = Date.now();
 const HF_BACKUP_ENABLED = !!process.env.HF_TOKEN;
 const SYNC_INTERVAL = process.env.SYNC_INTERVAL || "300";
-const UPTIMEROBOT_STATUS_FILE = "/tmp/huggingpost-uptimerobot-status.json";
-const UPTIMEROBOT_API_KEY_SET = !!process.env.UPTIMEROBOT_API_KEY;
+const CLOUDFLARE_KEEPALIVE_STATUS_FILE = "/tmp/huggingpost-cloudflare-keepalive-status.json";
 
 // Social platform env-var presence check (for dashboard status grid).
 // Each entry: { name, emoji, ready: bool, setupUrl, envVars, noOAuth }
@@ -573,13 +572,37 @@ function isLocalRoute(pathname) {
 // UptimeRobot helpers
 // ============================================================================
 
-function getUptimeRobotStatus() {
+function getKeepaliveStatus() {
   try {
-    if (fs.existsSync(UPTIMEROBOT_STATUS_FILE)) {
-      return JSON.parse(fs.readFileSync(UPTIMEROBOT_STATUS_FILE, "utf8"));
+    if (fs.existsSync(CLOUDFLARE_KEEPALIVE_STATUS_FILE)) {
+      return JSON.parse(fs.readFileSync(CLOUDFLARE_KEEPALIVE_STATUS_FILE, "utf8"));
     }
   } catch {}
   return null;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function toneBadge(label, tone = "neutral") {
+  return `<span class="badge ${tone}">${escapeHtml(label)}</span>`;
+}
+
+function renderTile({ title, value, detail = "", tone = "neutral", meta = "" }) {
+  return `<article class="tile ${tone}">
+    <div class="tile-head">
+      <span class="tile-title">${escapeHtml(title)}</span>
+      <span class="tile-dot"></span>
+    </div>
+    <div class="tile-value">${value}</div>
+    ${detail ? `<div class="tile-detail">${detail}</div>` : ""}
+    ${meta ? `<div class="tile-meta">${meta}</div>` : ""}
+  </article>`;
 }
 
 // ============================================================================
@@ -626,34 +649,42 @@ function formatUptime(seconds) {
 // Dashboard HTML
 // ============================================================================
 
-function renderDashboard(initialData) {
-  const syncStatus = initialData.sync;
-  const hasBackup = HF_BACKUP_ENABLED;
-  const lastSync = syncStatus.last_sync_time ? new Date(syncStatus.last_sync_time).toLocaleString() : "Never";
-  const syncError = syncStatus.last_error || null;
+function renderDashboard(data) {
+  const syncStatus = String(data.sync?.status || "unknown");
+  const syncTone = ["success", "restored", "synced", "configured"].includes(syncStatus)
+    ? "ok"
+    : syncStatus === "disabled"
+      ? "warn"
+      : "neutral";
+  const backupDetail = data.sync?.message ? escapeHtml(data.sync.message) : "No status yet";
+
+  const keepaliveConfigured = data.keepalive?.configured === true;
+  const keepaliveStatus = String(
+    data.keepalive?.status ||
+      (process.env.CLOUDFLARE_WORKERS_TOKEN ? "pending" : "not configured"),
+  );
+  const keepAliveTone = keepaliveConfigured
+    ? "ok"
+    : process.env.CLOUDFLARE_WORKERS_TOKEN
+      ? "warn"
+      : "neutral";
+  const keepAliveDetail = keepaliveConfigured
+    ? `Pinging <code>${escapeHtml(data.keepalive.targetUrl || "/health")}</code>`
+    : process.env.CLOUDFLARE_WORKERS_TOKEN
+      ? "Worker pending or failed"
+      : "Not configured";
+
   const platforms = getSocialPlatforms();
   const readyNow = platforms.filter(p => p.noOAuth);
   const needsSetup = platforms.filter(p => !p.noOAuth);
   const configuredCount = needsSetup.filter(p => p.ready).length;
-
-  const syncBadge = !hasBackup
-    ? `<span class="badge badge-off">Disabled</span>`
-    : syncError
-    ? `<span class="badge badge-err">Error</span>`
-    : syncStatus.last_sync_time
-    ? `<span class="badge badge-on"><i class="dot"></i>Syncing</span>`
-    : `<span class="badge badge-wait"><i class="dot" style="background:#3b82f6"></i>Pending</span>`;
-
-  const postizBadge = initialData.postizRunning
-    ? `<span class="badge badge-on"><i class="dot"></i>Running</span>`
-    : `<span class="badge badge-off">Booting…</span>`;
 
   const needsSetupRows = needsSetup.map(p => {
     if (p.ready) {
       return `<div class="plat-row ready">
         <span class="plat-icon">${p.emoji}</span>
         <span class="plat-name">${p.name}</span>
-        <span class="badge badge-on" style="font-size:0.72rem">Configured</span>
+        <span class="badge ok" style="font-size:0.72rem">Configured</span>
       </div>`;
     }
     return `<div class="plat-row">
@@ -670,231 +701,165 @@ function renderDashboard(initialData) {
       <span style="font-size:0.75rem;color:var(--dim)">${p.note || ""}</span>
     </div>`).join("");
 
-  const uptimerobotStatus = getUptimeRobotStatus();
-  let keepAwakeNote;
-  if (uptimerobotStatus?.configured) {
-    keepAwakeNote = `<span class="badge badge-on" style="font-size:0.72rem"><i class="dot"></i>Monitor active</span>`;
-  } else if (UPTIMEROBOT_API_KEY_SET) {
-    keepAwakeNote = `<span class="badge badge-wait" style="font-size:0.72rem"><i class="dot" style="background:#3b82f6"></i>Setting up…</span>`;
-  } else {
-    keepAwakeNote = `<span style="color:var(--dim);font-size:0.8rem">Add <code>UPTIMEROBOT_API_KEY</code> secret to keep Space awake 24/7</span>`;
-  }
+  const tiles = [
+    renderTile({
+      title: "Postiz Core",
+      value: toneBadge(data.postizRunning ? "Online" : "Booting", data.postizRunning ? "ok" : "warn"),
+      detail: `Backend Port ${POSTIZ_PORT}`,
+      tone: data.postizRunning ? "ok" : "warn",
+    }),
+    renderTile({
+      title: "Uptime",
+      value: escapeHtml(data.uptimeHuman),
+      detail: `Exposed on port ${PORT}`,
+      tone: "neutral",
+    }),
+    renderTile({
+      title: "Backup",
+      value: toneBadge(syncStatus.toUpperCase(), syncTone),
+      detail: backupDetail,
+      tone: syncTone,
+    }),
+    renderTile({
+      title: "Keep Awake",
+      value: toneBadge(keepaliveConfigured ? "CF Cron" : keepaliveStatus.toUpperCase(), keepAliveTone),
+      detail: keepAliveDetail,
+      tone: keepAliveTone,
+    }),
+  ].join("");
 
-  return `<!DOCTYPE html>
+  return `<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HuggingPost Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
-<style>
-:root{--bg:#0f172a;--card:rgba(30,41,59,.75);--accent:linear-gradient(135deg,#ec4899,#8b5cf6);--text:#f8fafc;--dim:#94a3b8;--ok:#10b981;--err:#ef4444}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px 12px;
-  background-image:radial-gradient(at 0% 0%,rgba(236,72,153,.15) 0,transparent 50%),radial-gradient(at 100% 0%,rgba(139,92,246,.15) 0,transparent 50%)}
-.wrap{max-width:640px;margin:0 auto}
-.card{background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:24px;margin-bottom:16px;
-  backdrop-filter:blur(12px);animation:up .5s ease}
-@keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-header{text-align:center;margin-bottom:24px}
-h1{font-size:2.2rem;font-weight:600;background:var(--accent);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.sub{color:var(--dim);font-size:.85rem;letter-spacing:1px;text-transform:uppercase;margin-top:4px}
-h2{font-size:.75rem;text-transform:uppercase;color:var(--dim);letter-spacing:.08em;margin-bottom:14px}
-.open-btn{display:block;text-align:center;background:var(--accent);color:#fff;font-family:inherit;font-size:1rem;
-  font-weight:600;padding:16px;border-radius:14px;text-decoration:none;margin-bottom:16px;
-  box-shadow:0 8px 24px -6px rgba(236,72,153,.45);transition:transform .2s,box-shadow .2s}
-.open-btn:hover{transform:scale(1.02);box-shadow:0 12px 30px -6px rgba(236,72,153,.6)}
-.open-btn.booting{background:rgba(255,255,255,.07);color:var(--dim);box-shadow:none;cursor:wait}
-.status-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
-.stat{flex:1;min-width:120px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);
-  border-radius:14px;padding:14px 16px}
-.stat-label{font-size:.7rem;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
-.stat-val{font-size:.95rem;font-weight:600}
-.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600}
-.badge-on{background:rgba(16,185,129,.12);color:var(--ok)}
-.badge-off{background:rgba(239,68,68,.12);color:var(--err)}
-.badge-wait{background:rgba(59,130,246,.12);color:#3b82f6}
-.badge-err{background:rgba(239,68,68,.12);color:var(--err)}
-.dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 2s infinite;flex-shrink:0}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.7)}70%{box-shadow:0 0 0 8px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
-.steps{counter-reset:step;list-style:none;padding:0}
-.steps li{counter-increment:step;display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)}
-.steps li:last-child{border-bottom:none}
-.steps li::before{content:counter(step);min-width:24px;height:24px;border-radius:50%;background:var(--accent);
-  color:#fff;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
-.steps li .s-title{font-size:.9rem;font-weight:600;margin-bottom:2px}
-.steps li .s-note{font-size:.8rem;color:var(--dim);line-height:1.5}
-.steps li a{color:#f472b6;text-decoration:none}
-.steps li a:hover{text-decoration:underline}
-.section-toggle{width:100%;background:none;border:none;color:var(--text);font:inherit;font-size:.75rem;
-  text-transform:uppercase;letter-spacing:.08em;color:var(--dim);display:flex;align-items:center;
-  justify-content:space-between;cursor:pointer;padding:0;margin-bottom:14px}
-.section-toggle svg{transition:transform .2s}
-.section-toggle.open svg{transform:rotate(180deg)}
-.collapse{display:none}.collapse.open{display:block}
-.plat-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.88rem}
-.plat-row:last-child{border-bottom:none}
-.plat-icon{font-size:1.1rem;width:24px;text-align:center;flex-shrink:0}
-.plat-name{flex:1;font-weight:500}
-.setup-link{color:#f472b6;font-size:.78rem;text-decoration:none;flex-shrink:0}
-.setup-link:hover{text-decoration:underline}
-.sync-note{font-size:.8rem;color:var(--dim);margin-top:8px}
-code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-size:.85em}
-.footer{text-align:center;color:var(--dim);font-size:.75rem;margin-top:8px;padding-bottom:24px}
-@media(max-width:500px){h1{font-size:1.8rem}.status-row{gap:8px}.stat{padding:12px}}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HuggingPost</title>
+  <style>
+    :root { color-scheme: dark; --bg:#08080f; --panel:#12111b; --panel2:#151421; --line:#26243a; --text:#f6f4ff; --muted:#7f7a9e; --soft:#b8b3d7; --good:#22c55e; --warn:#f5c542; --bad:#fb7185; --accent:#3b82f6; --accent2:#8b5cf6; --dim:#94a3b8; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); font-size:13px; }
+    main { width:min(720px, calc(100% - 32px)); margin:0 auto; padding:36px 0 44px; }
+    header { text-align:center; margin-bottom:22px; }
+    h1 { margin:0; font-size:1.65rem; line-height:1; letter-spacing:0; }
+    .subtitle { margin-top:12px; color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.14em; font-weight:800; }
+    
+    .hero-action { display:flex; width:100%; min-height:46px; align-items:center; justify-content:center; border-radius:8px; background:linear-gradient(135deg, var(--accent), var(--accent2)); color:#ffffff; text-decoration:none; font-weight:850; font-size:.98rem; margin:24px 0 20px; transition: opacity 0.15s ease; }
+    .hero-action:hover { opacity: 0.9; }
+    .hero-action.booting { background:var(--panel2); color:var(--muted); cursor:wait; border:1px solid var(--line); }
+
+    .overview { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin-bottom:24px; }
+    .tile { border:1px solid var(--line); background:var(--panel); border-radius:11px; padding:18px; min-height:124px; display:flex; flex-direction:column; gap:10px; position:relative; }
+    .tile.ok { border-color:rgba(34,197,94,.22); }
+    .tile.warn { border-color:rgba(245,197,66,.24); }
+    .tile.off { border-color:rgba(251,113,133,.28); }
+    .tile-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .tile-title { color:var(--muted); font-size:.67rem; letter-spacing:.18em; text-transform:uppercase; font-weight:850; }
+    .tile-dot { width:7px; height:7px; border-radius:50%; background:var(--line); }
+    .tile.ok .tile-dot { background:var(--good); }
+    .tile.warn .tile-dot { background:var(--warn); }
+    .tile.off .tile-dot { background:var(--bad); }
+    .tile-value { font-size:1.12rem; font-weight:850; overflow-wrap:anywhere; }
+    .tile-detail { color:var(--soft); line-height:1.45; font-size:.83rem; }
+    .tile-meta { color:var(--muted); line-height:1.4; font-size:.75rem; margin-top:auto; overflow-wrap:anywhere; }
+
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:20px; margin-bottom:12px; }
+    .card h2 { font-size:.7rem; text-transform:uppercase; color:var(--muted); letter-spacing:.1em; margin:0 0 16px; }
+    .steps { list-style:none; padding:0; margin:0; }
+    .steps li { display:flex; gap:12px; padding:12px 0; border-top:1px solid var(--line); }
+    .steps li:first-child { border-top:none; padding-top:0; }
+    .steps li::before { content: counter(step-counter); counter-increment: step-counter; width:22px; height:22px; border-radius:50%; background:var(--panel2); border:1px solid var(--line); color:var(--text); font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .steps { counter-reset: step-counter; }
+    .s-title { font-weight:800; margin-bottom:4px; font-size:14px; }
+    .s-note { color:var(--muted); line-height:1.5; font-size:12px; }
+
+    .plat-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--line); font-size:13px; }
+    .plat-row:first-child { border-top:none; }
+    .plat-icon { font-size:16px; width:22px; text-align:center; flex-shrink:0; }
+    .plat-name { flex:1; font-weight:700; }
+    .setup-link { color:var(--accent2); font-size:11px; text-decoration:none; font-weight:800; }
+    .setup-link:hover { text-decoration:underline; }
+
+    .badge { display:inline-flex; align-items:center; width:max-content; border:1px solid var(--line); border-radius:999px; padding:5px 10px; font-size:.72rem; font-weight:850; line-height:1; text-transform:uppercase; }
+    .badge.ok { color:var(--good); border-color:rgba(34,197,94,.34); background:rgba(34,197,94,.11); }
+    .badge.warn { color:var(--warn); border-color:rgba(245,197,66,.34); background:rgba(245,197,66,.11); }
+    .badge.off { color:var(--bad); border-color:rgba(251,113,133,.34); background:rgba(251,113,133,.11); }
+    .badge.neutral { color:var(--soft); }
+
+    code { background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:2px 6px; color:var(--text); font-size:.9em; }
+    footer { color:var(--muted); text-align:center; font-size:.74rem; margin-top:18px; }
+    footer .live { color:var(--good); }
+    @media (max-width: 700px) { .overview { grid-template-columns:1fr; } main { width:min(100% - 22px, 720px); padding-top:28px; } }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>📮 HuggingPost</h1>
-    <p class="sub">Self-hosted Postiz · Hugging Face Spaces</p>
-  </header>
+  <main>
+    <header>
+      <h1>📮 HuggingPost</h1>
+      <div class="subtitle">Self-hosted Postiz Dashboard</div>
+    </header>
 
-  <!-- Open Postiz button -->
-  ${initialData.postizRunning
-    ? `<a href="/app/auth" class="open-btn" target="_blank" rel="noopener">Open Postiz →</a>`
-    : `<a href="#" class="open-btn booting" onclick="return false">⏳ Postiz is starting up (first boot ~5 min)…</a>`}
+    ${data.postizRunning
+      ? `<a href="/app/auth" class="hero-action" target="_blank" rel="noopener">Open Postiz -></a>`
+      : `<a href="#" class="hero-action booting" onclick="return false">Postiz is starting up (first boot ~5 min)...</a>`}
 
-  <!-- Status row -->
-  <div class="status-row">
-    <div class="stat"><div class="stat-label">Postiz</div><div class="stat-val" id="postiz-badge">${postizBadge}</div></div>
-    <div class="stat"><div class="stat-label">Uptime</div><div class="stat-val" id="uptime">${formatUptime(Math.floor((Date.now() - startTime) / 1000))}</div></div>
-    <div class="stat"><div class="stat-label">Backup</div><div class="stat-val" id="sync-badge">${syncBadge}</div></div>
-  </div>
+    <section class="overview">
+      ${tiles}
+    </section>
 
-  <!-- Getting Started -->
-  <div class="card">
-    <h2>🚀 Getting Started</h2>
-    <ol class="steps">
-      <li>
-        <div>
-          <div class="s-title">Create your account</div>
-          <div class="s-note">Click <strong>Open Postiz</strong> above. The first signup becomes the admin account.</div>
-        </div>
-      </li>
-      <li>
-        <div>
-          <div class="s-title">Connect social accounts that work immediately</div>
-          <div class="s-note">Bluesky, Mastodon, Telegram, Dev.to, Hashnode and more connect with just your username — no developer setup needed. See the list below.</div>
-        </div>
-      </li>
-      <li>
-        <div>
-          <div class="s-title">Enable LinkedIn, X, YouTube… (optional)</div>
-          <div class="s-note">These require a free API key from each platform. Use the <a href="/setup" style="color:#f472b6">Setup Guide →</a> for step-by-step instructions per platform, then add the keys as <a href="https://huggingface.co/spaces/${process.env.SPACE_ID || "your-space"}/settings" target="_blank">Space secrets</a>.</div>
-        </div>
-      </li>
-      <li>
-        <div>
-          <div class="s-title">Keep your Space awake (optional)</div>
-          <div class="s-note">HF Spaces sleep after inactivity — scheduled posts won't fire while sleeping. Add <code>UPTIMEROBOT_API_KEY</code> to auto-create a free uptime monitor, or upgrade to a paid HF Space.</div>
-        </div>
-      </li>
-    </ol>
-  </div>
-
-  <!-- Platforms ready now -->
-  <div class="card">
-    <button class="section-toggle open" onclick="toggle(this,'ready-list')">
-      ✅ Works immediately — no API keys needed (${readyNow.length} platforms)
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
-    <div id="ready-list" class="collapse open">
-      ${readyNowRows}
-      <div class="sync-note" style="margin-top:10px">Connect these inside Postiz → <strong>Add Channel</strong> after signing in.</div>
+    <div class="card">
+      <h2>🚀 Getting Started</h2>
+      <ol class="steps">
+        <li>
+          <div>
+            <div class="s-title">Create your account</div>
+            <div class="s-note">Click <strong>Open Postiz</strong> above. The first signup becomes the admin account.</div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <div class="s-title">Connect direct channels</div>
+            <div class="s-note">Bluesky, Mastodon, Telegram, Dev.to, and Hashnode connect with just your credentials.</div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <div class="s-title">Enable OAuth platforms</div>
+            <div class="s-note">LinkedIn, X, YouTube... require API keys. Use the <a href="/setup" class="setup-link">Setup Guide -></a> for instructions.</div>
+          </div>
+        </li>
+      </ol>
     </div>
-  </div>
 
-  <!-- Platforms needing setup -->
-  <div class="card">
-    <button class="section-toggle open" onclick="toggle(this,'oauth-list')">
-      🔑 Needs API keys — ${configuredCount}/${needsSetup.length} configured
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
-    <div id="oauth-list" class="collapse open">
-      ${needsSetupRows}
-      <div class="sync-note" style="margin-top:10px">
-        After getting API keys: go to your <a href="https://huggingface.co/spaces/${process.env.SPACE_ID || "your-space"}/settings" target="_blank" style="color:#f472b6">Space Settings → Variables & Secrets</a>, add the keys, then restart the Space.
+    <div class="card">
+      <h2>✅ Works immediately (${readyNow.length} platforms)</h2>
+      <div class="plat-list">
+        ${readyNowRows}
       </div>
-      <a href="/setup" style="display:inline-block;margin-top:12px;background:linear-gradient(135deg,#ec4899,#8b5cf6);color:#fff;text-decoration:none;padding:9px 18px;border-radius:10px;font-size:.84rem;font-weight:600">📖 Full Setup Guide →</a>
     </div>
-  </div>
 
-  <!-- Backup & System -->
-  <div class="card">
-    <button class="section-toggle" onclick="toggle(this,'sys-detail')">
-      ⚙️ System &amp; Backup
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
-    <div id="sys-detail" class="collapse">
-      <div class="plat-row">
-        <span style="flex:1;font-size:.85rem">Database backup to HF Dataset</span>
-        <span id="sync-badge-detail">${syncBadge}</span>
+    <div class="card">
+      <h2>🔑 Needs API keys (${configuredCount}/${needsSetup.length} configured)</h2>
+      <div class="plat-list">
+        ${needsSetupRows}
       </div>
-      <div class="plat-row">
-        <span style="flex:1;font-size:.85rem">Last sync</span>
-        <span style="font-size:.82rem;color:var(--dim)" id="sync-time-detail">${lastSync}</span>
+      <div style="margin-top:16px">
+        <a href="/setup" class="hero-action" style="background:var(--panel2); border:1px solid var(--line); margin:0;">📖 View Full Setup Guide</a>
       </div>
-      <div class="plat-row">
-        <span style="flex:1;font-size:.85rem">Keep-awake monitor</span>
-        ${keepAwakeNote}
-      </div>
-      <div class="sync-note" id="sync-msg">${syncError ? "Backup error: " + syncError : syncStatus.last_sync_time ? "Last backup successful" : hasBackup ? "Waiting for first sync…" : "Add HF_TOKEN secret to enable automatic DB backups"}</div>
     </div>
-  </div>
 
-  <div class="footer">Auto-refreshes every 30s · <a href="/health" style="color:var(--dim);text-decoration:none">Health endpoint</a></div>
-</div>
-
-<script>
-function toggle(btn, id) {
-  btn.classList.toggle('open');
-  document.getElementById(id).classList.toggle('open');
-}
-
-function renderSyncBadge(hasBackup, lastSyncTime, lastError) {
-  if (!hasBackup) return '<span class="badge badge-off">Disabled</span>';
-  if (lastError) return '<span class="badge badge-err">Error</span>';
-  if (lastSyncTime) return '<span class="badge badge-on"><i class="dot"></i>Syncing</span>';
-  return '<span class="badge badge-wait"><i class="dot" style="background:#3b82f6"></i>Pending</span>';
-}
-
-async function refresh() {
-  try {
-    const d = await fetch('/status').then(r => r.json());
-    document.getElementById('uptime').textContent = d.uptime;
-
-    const running = d.postizRunning;
-    document.getElementById('postiz-badge').innerHTML = running
-      ? '<span class="badge badge-on"><i class="dot"></i>Running</span>'
-      : '<span class="badge badge-off">Booting…</span>';
-
-    const btn = document.querySelector('.open-btn');
-    if (btn && running && btn.classList.contains('booting')) {
-      btn.classList.remove('booting');
-      btn.textContent = 'Open Postiz →';
-      btn.href = '/app/auth';
-      btn.onclick = null;
+    <footer><span class="live">Live</span> status - Health endpoint: <code>/health</code></footer>
+  </main>
+  <script>
+    async function refresh() {
+      try {
+        const d = await fetch('/status').then(r => r.json());
+        if (d.postizRunning && document.querySelector('.hero-action.booting')) {
+          location.reload();
+        }
+      } catch(e) {}
     }
-
-    const badge = renderSyncBadge(${hasBackup}, d.sync.last_sync_time, d.sync.last_error);
-    ['sync-badge','sync-badge-detail'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = badge;
-    });
-    const ls = d.sync.last_sync_time ? new Date(d.sync.last_sync_time).toLocaleString() : 'Never';
-    const el = document.getElementById('sync-time-detail');
-    if (el) el.textContent = ls;
-    const msg = document.getElementById('sync-msg');
-    if (msg) msg.textContent = d.sync.last_error ? 'Backup error: ' + d.sync.last_error
-      : d.sync.last_sync_time ? 'Last backup successful'
-      : ${hasBackup} ? 'Waiting for first sync…' : 'Add HF_TOKEN secret to enable automatic DB backups';
-  } catch(e) {}
-}
-refresh();
-setInterval(refresh, 30000);
-</script>
+    setInterval(refresh, 15000);
+  </script>
 </body>
 </html>`;
 }
@@ -1051,6 +1016,7 @@ const server = http.createServer((req, res) => {
         uptime: formatUptime(uptime),
         postizRunning: postiz.status === "running",
         sync: readSyncStatus(),
+        keepalive: getKeepaliveStatus(),
       }));
     })();
     return;

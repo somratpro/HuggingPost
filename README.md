@@ -11,9 +11,7 @@ secrets:
   - name: HF_TOKEN
     description: HF token with WRITE access — enables DB+uploads backup persistence to a private HF Dataset.
   - name: CLOUDFLARE_WORKERS_TOKEN
-    description: Cloudflare API token to auto-provision an outbound proxy.
-  - name: UPTIMEROBOT_API_KEY
-    description: UptimeRobot API key for automatic monitor setup.
+    description: Cloudflare API token to auto-provision an outbound proxy and the Keep-Alive monitor.
 ---
 
 [![GitHub Stars](https://img.shields.io/github/stars/somratpro/huggingpost?style=flat-square)](https://github.com/somratpro/huggingpost)
@@ -41,7 +39,7 @@ secrets:
 - 📅 **30+ Social Platforms** — schedule posts to X, LinkedIn, Facebook, Threads, TikTok, YouTube, Reddit, Mastodon, Discord, Slack, Pinterest, etc.
 - ⚡ **One-click deploy** — duplicate the Space, add `HF_TOKEN`, you're done.
 - 💾 **Persistent across restarts** — PostgreSQL + uploaded media auto-backed up to a private HF Dataset every 5 min and restored on boot.
-- 💓 **Keep-Alive** — add `UPTIMEROBOT_API_KEY` as a Space secret and the monitor is created automatically at boot.
+- 💓 **Keep-Alive** — add `CLOUDFLARE_WORKERS_TOKEN` as a Space secret and a cron monitor is created automatically via Cloudflare Workers.
 - 🌐 **Outbound firewall workaround** — optional Cloudflare Worker proxy auto-provisioned for blocked platform APIs.
 - 🔒 **Secrets generated** — `JWT_SECRET` auto-generated on first boot and persisted, no manual setup.
 - 🏠 **100% HF-Native** — no external Postgres/Redis/storage accounts needed for the default path.
@@ -74,7 +72,7 @@ Land on the HuggingPost dashboard. Click **Open Postiz →** to reach the login 
 
 ### Step 5: Set Up Keep-Alive (1 min)
 
-Add your [UptimeRobot](https://uptimerobot.com) **Main API key** as a Space secret named `UPTIMEROBOT_API_KEY`. HuggingPost will automatically create a monitor that pings `/health` every 5 min at boot. Without this, the Space will sleep and scheduled posts won't fire.
+Add your **Cloudflare Workers Token** as a Space secret named `CLOUDFLARE_WORKERS_TOKEN`. HuggingPost will automatically create a Worker cron that pings `/health` every 10 min. Without this, the Space will sleep and scheduled posts won't fire.
 
 ## 🔑 Configuration
 
@@ -137,7 +135,7 @@ huggingface-cli download --repo-type dataset <your-username>/huggingpost-backup
 
 ## 💓 Keep It Awake
 
-Free HF Spaces sleep after ~48h of no traffic. A sleeping Space cannot fire scheduled posts. Add your [UptimeRobot](https://uptimerobot.com) **Main API key** (NOT a Read-only or Monitor-specific key) as a Space secret named `UPTIMEROBOT_API_KEY`. HuggingPost will automatically create the monitor at boot. The dashboard shows the current status.
+Free HF Spaces sleep after ~48h of no traffic. A sleeping Space cannot fire scheduled posts. Add your `CLOUDFLARE_WORKERS_TOKEN` as a Space secret. HuggingPost will automatically create a Cloudflare Worker cron that pings the Space every 10 minutes to keep it active. The dashboard shows the current "Keep Awake" status.
 
 ## 🌐 Cloudflare Proxy *(Optional)*
 
@@ -177,7 +175,7 @@ HuggingPost/
 ├── cloudflare-proxy.js      # Transparent outbound proxy injected via NODE_OPTIONS
 ├── cloudflare-proxy-setup.py
 ├── cloudflare-worker.js
-├── setup-uptimerobot.sh
+├── cloudflare-keepalive-setup.py
 ├── docker-compose.yml       # Local dev convenience
 ├── .env.example             # Configuration reference
 └── README.md
@@ -187,7 +185,7 @@ HuggingPost/
 
 | Path | Target | Notes |
 | :--- | :--- | :--- |
-| `/` | HuggingPost dashboard (local) | Status + UptimeRobot badge |
+| `/` | HuggingPost dashboard (local) | Status + Keep Awake tile |
 | `/health`, `/status` | local | JSON handlers |
 | `/app` or `/app/*` | Postiz nginx `:5000` | `/app` stripped — Next.js built with `basePath="/app"` |
 | `/_next/*`, `/static/*` | 301 → `/app/<path>` | Catches absolute-URL leaks |
@@ -224,7 +222,7 @@ On restarts after the first boot, wait 30–90 s for PM2 processes to come up. C
 Either move media to Cloudflare R2 (`STORAGE_PROVIDER=cloudflare`) or raise `SYNC_MAX_FILE_BYTES`. The HF Dataset itself supports much larger files, but huge backups slow restart.
 
 **Scheduled posts didn't fire while I was away**
-The Space slept. Add `UPTIMEROBOT_API_KEY` as a Space secret to enable automatic keep-awake monitoring.
+The Space slept. Add `CLOUDFLARE_WORKERS_TOKEN` as a Space secret to enable automatic keep-awake monitoring.
 
 **OAuth callback fails for X/Facebook/LinkedIn**
 Some platforms reject `*.hf.space` subdomains as redirect URIs. You may need to put a custom domain in front (Cloudflare → HF Space CNAME).
@@ -240,7 +238,7 @@ Usually means Postgres didn't finish starting. Container will exit and HF will a
 - [Postiz on GitHub](https://github.com/gitroomhq/postiz-app)
 - [Postiz docs](https://docs.postiz.com)
 - [HuggingFace Spaces docs](https://huggingface.co/docs/hub/spaces)
-- Sister projects: [HuggingClip](https://huggingface.co/spaces/somratpro/HuggingClip) (Paperclip), [Hugging8n](https://huggingface.co/spaces/somratpro/Hugging8n) (n8n)
+- More projects: [Hugging8n](https://huggingface.co/spaces/somratpro/Hugging8n) (n8n), [HuggingClip](https://huggingface.co/spaces/somratpro/HuggingClip) (Paperclip), [HuggingClaw](https://huggingface.co/spaces/somratpro/HuggingClaw) (OpenClaw), [HuggingMess](https://huggingface.co/spaces/somratpro/HuggingMess) (Messari)
 
 ## 📄 License
 

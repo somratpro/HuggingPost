@@ -182,7 +182,7 @@ COPY postiz-sync.py /opt/postiz-sync.py
 COPY cloudflare-proxy.js /opt/cloudflare-proxy.js
 COPY cloudflare-proxy-setup.py /opt/cloudflare-proxy-setup.py
 COPY cloudflare-worker.js /opt/cloudflare-worker.js
-COPY setup-uptimerobot.sh /opt/setup-uptimerobot.sh
+COPY cloudflare-keepalive-setup.py /opt/cloudflare-keepalive-setup.py
 
 # Vendor fonts + patch script available at runtime.
 # Stage 1 may be cached from before the font patch was added; start.sh applies
@@ -194,7 +194,7 @@ COPY vendor/fonts/PlusJakartaSans-500-normal.woff2 \
      /opt/vendor/fonts/
 COPY vendor/patch-jakarta-font.js /opt/vendor/patch-jakarta-font.js
 
-RUN chmod +x /opt/start.sh /opt/setup-uptimerobot.sh
+RUN chmod +x /opt/start.sh /opt/cloudflare-keepalive-setup.py
 
 EXPOSE 7860
 

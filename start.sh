@@ -261,9 +261,9 @@ fi
 node /opt/healthsrv/health-server.js &
 HEALTH_PID=$!
 
-if [ -n "${UPTIMEROBOT_API_KEY:-}" ] && [ -n "${SPACE_HOST:-}" ]; then
-  echo "Setting up UptimeRobot monitor..."
-  bash /opt/setup-uptimerobot.sh "${SPACE_HOST}" || true
+if [ -n "${CLOUDFLARE_WORKERS_TOKEN:-}" ]; then
+  echo "Setting up Cloudflare KeepAlive monitor..."
+  python3 /opt/cloudflare-keepalive-setup.py || true
 fi
 
 sleep 1
