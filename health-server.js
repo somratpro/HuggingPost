@@ -1063,6 +1063,30 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── /app/debug-logs — Temporary endpoint for debugging ───────────────────
+  if (pathname === "/app/debug-logs") {
+    try {
+      const errLog = fs.existsSync("/root/.pm2/logs/backend-error.log") 
+        ? fs.readFileSync("/root/.pm2/logs/backend-error.log", "utf8") 
+        : "No backend-error.log found";
+      const outLog = fs.existsSync("/root/.pm2/logs/backend-out.log")
+        ? fs.readFileSync("/root/.pm2/logs/backend-out.log", "utf8")
+        : "No backend-out.log found";
+      
+      const cfProxyLog = fs.existsSync("/tmp/huggingpost-cloudflare-proxy.env")
+        ? fs.readFileSync("/tmp/huggingpost-cloudflare-proxy.env", "utf8")
+        : "No proxy env";
+
+      const out = `=== BACKEND ERROR LOG ===\n${errLog}\n\n=== BACKEND OUT LOG ===\n${outLog}\n\n=== PROXY ENV ===\n${cfProxyLog}`;
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end(out);
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("Error reading logs: " + e.message);
+    }
+    return;
+  }
+
   // ── Dashboard at exact / ─────────────────────────────────────────────────
   if (pathname === "/" || pathname === "") {
     void (async () => {
