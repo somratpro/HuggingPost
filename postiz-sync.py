@@ -149,35 +149,53 @@ def _exclude_next_cache(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo | None:
     return tarinfo
 
 
+def _write_tarball(tarball: Path, dump_file: str, include_next: bool) -> None:
+    """Write the backup tarball. Raises on any error."""
+    with tarfile.open(tarball, "w:gz") as tar:
+        tar.add(dump_file, arcname="postiz.sql")
+        if UPLOADS_DIR.exists():
+            tar.add(str(UPLOADS_DIR), arcname="uploads")
+        if SECRETS_DIR.exists():
+            tar.add(str(SECRETS_DIR), arcname=".secrets")
+        if include_next and NEXT_DIR.exists() and (NEXT_DIR / "BUILD_ID").exists():
+            tar.add(str(NEXT_DIR), arcname="frontend-next", filter=_exclude_next_cache)
+            logger.debug("Included .next in tarball (webpack cache excluded)")
+
+
 def create_backup_tarball(dump_file: str) -> tuple[str | None, bool]:
     temp_dir = tempfile.mkdtemp()
     tarball = Path(temp_dir) / "huggingpost-backup.tar.gz"
     try:
-        with tarfile.open(tarball, "w:gz") as tar:
-            tar.add(dump_file, arcname="postiz.sql")
-            if UPLOADS_DIR.exists():
-                tar.add(str(UPLOADS_DIR), arcname="uploads")
-            if SECRETS_DIR.exists():
-                tar.add(str(SECRETS_DIR), arcname=".secrets")
-            # Include compiled frontend so subsequent restarts skip the 5-min build.
-            # Exclude .next/cache (webpack cache) — large and not needed to run.
-            if NEXT_DIR.exists() and (NEXT_DIR / "BUILD_ID").exists():
-                tar.add(str(NEXT_DIR), arcname="frontend-next", filter=_exclude_next_cache)
-                logger.debug("Included .next in tarball (webpack cache excluded)")
+        # First attempt: include compiled .next so subsequent restarts skip rebuild.
+        _write_tarball(tarball, dump_file, include_next=True)
         size = tarball.stat().st_size
         size_mb = size / 1024 / 1024
         logger.debug(f"Tarball created ({size_mb:.2f} MB)")
         if size > SYNC_MAX_FILE_BYTES:
-            logger.error(
-                f"Backup too large: {size_mb:.0f} MB > {SYNC_MAX_FILE_BYTES/1024/1024:.0f} MB. "
-                "Move uploads to Cloudflare R2 (set STORAGE_PROVIDER=cloudflare) "
-                "or raise SYNC_MAX_FILE_BYTES."
+            logger.warning(
+                f"Tarball with .next too large ({size_mb:.0f} MB > "
+                f"{SYNC_MAX_FILE_BYTES/1024/1024:.0f} MB limit) — "
+                "retrying without compiled frontend..."
             )
-            return None, False
+            # Second attempt: skip .next, keep essential DB + uploads + secrets.
+            tarball.unlink(missing_ok=True)
+            _write_tarball(tarball, dump_file, include_next=False)
+            size = tarball.stat().st_size
+            size_mb = size / 1024 / 1024
+            logger.debug(f"Tarball without .next: {size_mb:.2f} MB")
+            if size > SYNC_MAX_FILE_BYTES:
+                logger.error(
+                    f"Backup still too large without .next ({size_mb:.0f} MB > "
+                    f"{SYNC_MAX_FILE_BYTES/1024/1024:.0f} MB). "
+                    "Move uploads to Cloudflare R2 (STORAGE_PROVIDER=cloudflare) "
+                    "or raise SYNC_MAX_FILE_BYTES."
+                )
+                return None, False
         return str(tarball), True
     except Exception as e:
         logger.error(f"Failed to create tarball: {e}")
         return None, False
+
 
 
 def upload_to_hf(backup_file: str) -> bool:
@@ -348,7 +366,7 @@ def cmd_sync() -> bool:
             write_status(status); return False
         tarball, ok = create_backup_tarball(dump)
         if not ok:
-            status.update({"last_error": "tarball creation failed", "db_status": "error"})
+            status.update({"last_error": "tarball creation failed — backup too large or I/O error (check logs)", "db_status": "error"})
             write_status(status); return False
         ok = upload_to_hf(tarball)
         status["last_sync_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

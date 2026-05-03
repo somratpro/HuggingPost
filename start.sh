@@ -87,7 +87,7 @@ export NOT_SECURED="${NOT_SECURED:-true}"
 
 # Sync config
 export SYNC_INTERVAL="${SYNC_INTERVAL:-300}"
-export SYNC_MAX_FILE_BYTES="${SYNC_MAX_FILE_BYTES:-104857600}"
+export SYNC_MAX_FILE_BYTES="${SYNC_MAX_FILE_BYTES:-524288000}"  # 500 MB (default; covers .next + DB + uploads)
 export BACKUP_DATASET_NAME="${BACKUP_DATASET_NAME:-huggingpost-backup}"
 
 # ── Banner ───────────────────────────────────────────────────────────────────
