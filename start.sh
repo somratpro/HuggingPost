@@ -244,6 +244,12 @@ if [ -n "${CLOUDFLARE_PROXY_URL:-}" ] && [ -f /opt/cloudflare-proxy.js ]; then
     export NODE_OPTIONS="${NODE_OPTIONS:-} --require /opt/cloudflare-proxy.js"
 fi
 
+# ── Cloudflare KeepAlive worker ──────────────────────────────────────────────
+if [ -n "${CLOUDFLARE_WORKERS_TOKEN:-}" ]; then
+    echo "Setting up Cloudflare KeepAlive worker..."
+    python3 /opt/cloudflare-keepalive-setup.py || true
+fi
+
 # ── Background HF sync loop ──────────────────────────────────────────────────
 SYNC_PID=""
 if [ -n "${HF_TOKEN:-}" ]; then
@@ -260,11 +266,6 @@ fi
 # ── Health server (public port 7860) ─────────────────────────────────────────
 node /opt/healthsrv/health-server.js &
 HEALTH_PID=$!
-
-if [ -n "${CLOUDFLARE_WORKERS_TOKEN:-}" ]; then
-  echo "Setting up Cloudflare KeepAlive monitor..."
-  python3 /opt/cloudflare-keepalive-setup.py || true
-fi
 
 sleep 1
 
