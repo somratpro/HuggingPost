@@ -1158,6 +1158,9 @@ function renderDashboard(data) {
       value: toneBadge(syncStatus.toUpperCase(), syncTone),
       detail: backupDetail,
       tone: syncTone,
+      meta: data.sync?.timestamp
+        ? `<span class="local-time" data-iso="${data.sync.timestamp}"></span>`
+        : "",
     }),
     renderTile({
       title: "Keep Awake",
@@ -1303,6 +1306,12 @@ function renderDashboard(data) {
       } catch(e) {}
     }
     setInterval(refresh, 15000);
+    document.querySelectorAll('.local-time').forEach(el => {
+      const date = new Date(el.getAttribute('data-iso'));
+      if (!isNaN(date)) {
+        el.textContent = 'At ' + date.toLocaleTimeString();
+      }
+    });
   </script>
 </body>
 </html>`;
