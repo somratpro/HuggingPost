@@ -237,7 +237,7 @@ Usually means Postgres didn't finish starting. Container will exit and HF will a
 - [Postiz on GitHub](https://github.com/gitroomhq/postiz-app)
 - [Postiz docs](https://docs.postiz.com)
 - [HuggingFace Spaces docs](https://huggingface.co/docs/hub/spaces)
-- More projects: [Hugging8n](https://huggingface.co/spaces/somratpro/Hugging8n) (n8n), [HuggingClip](https://huggingface.co/spaces/somratpro/HuggingClip) (Paperclip), [HuggingClaw](https://huggingface.co/spaces/somratpro/HuggingClaw) (OpenClaw), [HuggingMess](https://huggingface.co/spaces/somratpro/HuggingMess) (Messari)
+- More projects: [Hugging8n](https://huggingface.co/spaces/somratpro/Hugging8n) (n8n), [HuggingClip](https://huggingface.co/spaces/somratpro/HuggingClip) (Paperclip), [HuggingClaw](https://huggingface.co/spaces/somratpro/HuggingClaw) (OpenClaw), [HuggingMes](https://huggingface.co/spaces/somratpro/HuggingMes) (Messari)
 
 ## 📄 License
 
