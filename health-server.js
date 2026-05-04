@@ -31,11 +31,19 @@ const PORT = 7860;
 // is simpler and faster.
 const NEXTJS_PUBLIC_DIR = "/app/apps/frontend/public";
 const MIME_TYPES = {
-  ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
-  ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
-  ".ico": "image/x-icon", ".woff": "font/woff", ".woff2": "font/woff2",
-  ".ttf": "font/ttf", ".eot": "application/vnd.ms-fontobject",
-  ".txt": "text/plain; charset=utf-8", ".xml": "application/xml",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".eot": "application/vnd.ms-fontobject",
+  ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml",
 };
 const POSTIZ_HOST = "127.0.0.1";
 const POSTIZ_PORT = 5000;
@@ -43,7 +51,8 @@ const POSTIZ_PORT = 5000;
 const startTime = Date.now();
 const HF_BACKUP_ENABLED = !!process.env.HF_TOKEN;
 const SYNC_INTERVAL = process.env.SYNC_INTERVAL || "300";
-const CLOUDFLARE_KEEPALIVE_STATUS_FILE = "/tmp/huggingpost-cloudflare-keepalive-status.json";
+const CLOUDFLARE_KEEPALIVE_STATUS_FILE =
+  "/tmp/huggingpost-cloudflare-keepalive-status.json";
 
 // Social platform env-var presence check (for dashboard status grid).
 // Each entry: { name, emoji, ready: bool, setupUrl, envVars, noOAuth }
@@ -51,49 +60,156 @@ function getSocialPlatforms() {
   const e = process.env;
   return [
     // ── Works immediately (connect inside Postiz UI, no env vars needed) ─────
-    { name: "Bluesky",    emoji: "🦋", noOAuth: true, ready: true,  note: "Username + App Password in Postiz" },
-    { name: "Mastodon",   emoji: "🐘", noOAuth: true, ready: true,  note: "Instance URL + credentials in Postiz" },
-    { name: "Telegram",   emoji: "✈️", noOAuth: true, ready: true,  note: "Bot token from @BotFather in Postiz" },
-    { name: "Nostr",      emoji: "🔑", noOAuth: true, ready: true,  note: "Private key in Postiz" },
-    { name: "Lemmy",      emoji: "🐾", noOAuth: true, ready: true,  note: "Instance + credentials in Postiz" },
-    { name: "Warpcast",   emoji: "🟣", noOAuth: true, ready: true,  note: "FID + private key in Postiz" },
-    { name: "Dev.to",     emoji: "💻", noOAuth: true, ready: true,  note: "API key from dev.to settings" },
-    { name: "Hashnode",   emoji: "📰", noOAuth: true, ready: true,  note: "API token from Hashnode settings" },
+    {
+      name: "Bluesky",
+      emoji: "🦋",
+      noOAuth: true,
+      ready: true,
+      note: "Username + App Password in Postiz",
+    },
+    {
+      name: "Mastodon",
+      emoji: "🐘",
+      noOAuth: true,
+      ready: true,
+      note: "Instance URL + credentials in Postiz",
+    },
+    {
+      name: "Telegram",
+      emoji: "✈️",
+      noOAuth: true,
+      ready: true,
+      note: "Bot token from @BotFather in Postiz",
+    },
+    {
+      name: "Nostr",
+      emoji: "🔑",
+      noOAuth: true,
+      ready: true,
+      note: "Private key in Postiz",
+    },
+    {
+      name: "Lemmy",
+      emoji: "🐾",
+      noOAuth: true,
+      ready: true,
+      note: "Instance + credentials in Postiz",
+    },
+    {
+      name: "Warpcast",
+      emoji: "🟣",
+      noOAuth: true,
+      ready: true,
+      note: "FID + private key in Postiz",
+    },
+    {
+      name: "Dev.to",
+      emoji: "💻",
+      noOAuth: true,
+      ready: true,
+      note: "API key from dev.to settings",
+    },
+    {
+      name: "Hashnode",
+      emoji: "📰",
+      noOAuth: true,
+      ready: true,
+      note: "API token from Hashnode settings",
+    },
     // ── Needs OAuth app (env vars required) ───────────────────────────────────
-    { id: "linkedin",  name: "LinkedIn",   emoji: "💼", ready: !!(e.LINKEDIN_CLIENT_ID && e.LINKEDIN_CLIENT_ID !== "undefined"),
+    {
+      id: "linkedin",
+      name: "LinkedIn",
+      emoji: "💼",
+      ready: !!(e.LINKEDIN_CLIENT_ID && e.LINKEDIN_CLIENT_ID !== "undefined"),
       setupUrl: "https://www.linkedin.com/developers/apps/new",
-      envVars: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"] },
-    { id: "x",         name: "X / Twitter",emoji: "🐦", ready: !!(e.X_API_KEY),
+      envVars: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"],
+    },
+    {
+      id: "x",
+      name: "X / Twitter",
+      emoji: "🐦",
+      ready: !!e.X_API_KEY,
       setupUrl: "https://developer.twitter.com/en/portal/projects-and-apps",
-      envVars: ["X_API_KEY", "X_API_SECRET"] },
-    { id: "facebook",  name: "Facebook",   emoji: "📘", ready: !!(e.FACEBOOK_APP_ID),
-      setupUrl: "https://developers.facebook.com/apps/create/",
-      envVars: ["FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET"] },
-    { id: "instagram", name: "Instagram",  emoji: "📸", ready: !!(e.FACEBOOK_APP_ID),
+      envVars: ["X_API_KEY", "X_API_SECRET"],
+    },
+    {
+      id: "facebook",
+      name: "Facebook",
+      emoji: "📘",
+      ready: !!e.FACEBOOK_APP_ID,
       setupUrl: "https://developers.facebook.com/apps/create/",
       envVars: ["FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET"],
-      note: "Uses same app as Facebook" },
-    { id: "threads",   name: "Threads",    emoji: "🧵", ready: !!(e.THREADS_APP_ID),
+    },
+    {
+      id: "instagram",
+      name: "Instagram",
+      emoji: "📸",
+      ready: !!e.FACEBOOK_APP_ID,
       setupUrl: "https://developers.facebook.com/apps/create/",
-      envVars: ["THREADS_APP_ID", "THREADS_APP_SECRET"] },
-    { id: "youtube",   name: "YouTube",    emoji: "▶️",  ready: !!(e.YOUTUBE_CLIENT_ID),
+      envVars: ["FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET"],
+      note: "Uses same app as Facebook",
+    },
+    {
+      id: "threads",
+      name: "Threads",
+      emoji: "🧵",
+      ready: !!e.THREADS_APP_ID,
+      setupUrl: "https://developers.facebook.com/apps/create/",
+      envVars: ["THREADS_APP_ID", "THREADS_APP_SECRET"],
+    },
+    {
+      id: "youtube",
+      name: "YouTube",
+      emoji: "▶️",
+      ready: !!e.YOUTUBE_CLIENT_ID,
       setupUrl: "https://console.cloud.google.com/apis/credentials",
-      envVars: ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET"] },
-    { id: "tiktok",    name: "TikTok",     emoji: "🎵", ready: !!(e.TIKTOK_CLIENT_ID),
+      envVars: ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET"],
+    },
+    {
+      id: "tiktok",
+      name: "TikTok",
+      emoji: "🎵",
+      ready: !!e.TIKTOK_CLIENT_ID,
       setupUrl: "https://developers.tiktok.com/",
-      envVars: ["TIKTOK_CLIENT_ID", "TIKTOK_CLIENT_SECRET"] },
-    { id: "reddit",    name: "Reddit",     emoji: "🤖", ready: !!(e.REDDIT_CLIENT_ID),
+      envVars: ["TIKTOK_CLIENT_ID", "TIKTOK_CLIENT_SECRET"],
+    },
+    {
+      id: "reddit",
+      name: "Reddit",
+      emoji: "🤖",
+      ready: !!e.REDDIT_CLIENT_ID,
       setupUrl: "https://www.reddit.com/prefs/apps",
-      envVars: ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"] },
-    { id: "pinterest", name: "Pinterest",  emoji: "📌", ready: !!(e.PINTEREST_CLIENT_ID),
+      envVars: ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"],
+    },
+    {
+      id: "pinterest",
+      name: "Pinterest",
+      emoji: "📌",
+      ready: !!e.PINTEREST_CLIENT_ID,
       setupUrl: "https://developers.pinterest.com/apps/",
-      envVars: ["PINTEREST_CLIENT_ID", "PINTEREST_CLIENT_SECRET"] },
-    { id: "discord",   name: "Discord",    emoji: "🎮", ready: !!(e.DISCORD_CLIENT_ID),
+      envVars: ["PINTEREST_CLIENT_ID", "PINTEREST_CLIENT_SECRET"],
+    },
+    {
+      id: "discord",
+      name: "Discord",
+      emoji: "🎮",
+      ready: !!e.DISCORD_CLIENT_ID,
       setupUrl: "https://discord.com/developers/applications",
-      envVars: ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_BOT_TOKEN_ID"] },
-    { id: "slack",     name: "Slack",      emoji: "💬", ready: !!(e.SLACK_ID),
+      envVars: [
+        "DISCORD_CLIENT_ID",
+        "DISCORD_CLIENT_SECRET",
+        "DISCORD_BOT_TOKEN_ID",
+      ],
+    },
+    {
+      id: "slack",
+      name: "Slack",
+      emoji: "💬",
+      ready: !!e.SLACK_ID,
       setupUrl: "https://api.slack.com/apps?new_app=1",
-      envVars: ["SLACK_ID", "SLACK_SECRET", "SLACK_SIGNING_SECRET"] },
+      envVars: ["SLACK_ID", "SLACK_SECRET", "SLACK_SIGNING_SECRET"],
+    },
   ];
 }
 
@@ -108,18 +224,42 @@ function getOAuthPlatformDetails(publicUrl) {
       name: "LinkedIn",
       emoji: "💼",
       setupUrl: "https://www.linkedin.com/developers/apps/new",
-      docsUrl: "https://learn.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow",
+      docsUrl:
+        "https://learn.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow",
       callbackUrl: cb("linkedin"),
       envVars: [
-        { name: "LINKEDIN_CLIENT_ID",     desc: "Client ID",     set: !!e.LINKEDIN_CLIENT_ID },
-        { name: "LINKEDIN_CLIENT_SECRET", desc: "Client Secret", set: !!e.LINKEDIN_CLIENT_SECRET },
+        {
+          name: "LINKEDIN_CLIENT_ID",
+          desc: "Client ID",
+          set: !!e.LINKEDIN_CLIENT_ID,
+        },
+        {
+          name: "LINKEDIN_CLIENT_SECRET",
+          desc: "Client Secret",
+          set: !!e.LINKEDIN_CLIENT_SECRET,
+        },
       ],
       steps: [
-        { title: "Create a LinkedIn App", body: 'Visit the developer portal. Create a new app; set <strong>App type = Web</strong>.' },
-        { title: "Add OAuth redirect URL", body: 'In the <strong>Auth</strong> tab → OAuth 2.0 settings, paste the callback URL below.' },
-        { title: "Enable products", body: 'Add <strong>Sign In with LinkedIn using OpenID Connect</strong> and <strong>Share on LinkedIn</strong> products.' },
-        { title: "Copy credentials", body: 'From the Auth tab, copy <strong>Client ID</strong> and <strong>Client Secret</strong>.' },
-        { title: "Add to Space secrets", body: 'Open your HF Space settings, add both env vars below, then restart the Space.' },
+        {
+          title: "Create a LinkedIn App",
+          body: "Visit the developer portal. Create a new app; set <strong>App type = Web</strong>.",
+        },
+        {
+          title: "Add OAuth redirect URL",
+          body: "In the <strong>Auth</strong> tab → OAuth 2.0 settings, paste the callback URL below.",
+        },
+        {
+          title: "Enable products",
+          body: "Add <strong>Sign In with LinkedIn using OpenID Connect</strong> and <strong>Share on LinkedIn</strong> products.",
+        },
+        {
+          title: "Copy credentials",
+          body: "From the Auth tab, copy <strong>Client ID</strong> and <strong>Client Secret</strong>.",
+        },
+        {
+          title: "Add to Space secrets",
+          body: "Open your HF Space settings, add both env vars below, then restart the Space.",
+        },
       ],
     },
     {
@@ -127,18 +267,42 @@ function getOAuthPlatformDetails(publicUrl) {
       name: "X / Twitter",
       emoji: "🐦",
       setupUrl: "https://developer.twitter.com/en/portal/projects-and-apps",
-      docsUrl: "https://developer.twitter.com/en/docs/authentication/oauth-1-0a",
+      docsUrl:
+        "https://developer.twitter.com/en/docs/authentication/oauth-1-0a",
       callbackUrl: cb("x"),
       envVars: [
-        { name: "X_API_KEY",        desc: "API Key (Consumer Key)",    set: !!e.X_API_KEY },
-        { name: "X_API_SECRET",     desc: "API Secret (Consumer Secret)", set: !!e.X_API_SECRET },
+        {
+          name: "X_API_KEY",
+          desc: "API Key (Consumer Key)",
+          set: !!e.X_API_KEY,
+        },
+        {
+          name: "X_API_SECRET",
+          desc: "API Secret (Consumer Secret)",
+          set: !!e.X_API_SECRET,
+        },
       ],
       steps: [
-        { title: "Create an X Developer App", body: 'Apply for a developer account at <a href="https://developer.twitter.com" target="_blank" rel="noopener" style="color:#f472b6">developer.twitter.com</a> if you don\'t have one. Create a new project + app.' },
-        { title: "Enable OAuth 1.0a + set permissions", body: 'On your app page → <strong>User authentication settings → Set up</strong>. Enable <strong>OAuth 1.0a</strong>. Set App permissions to <strong>Read and Write</strong>. Set Type of App to <strong>Native App</strong> (⚠️ must be Native App, not Web App — Web App breaks OAuth 1.0a).' },
-        { title: "Add callback URL", body: 'In the same setup screen, under <strong>Callback URI / Redirect URL</strong>, paste the Callback URL shown below.' },
-        { title: "Get your Consumer Secret", body: '<strong>⚠️ The Consumer Secret (X_API_SECRET) is only shown once</strong> — right after app creation, or after you click <strong>Regenerate</strong> on the Consumer Key row in the Keys &amp; Tokens tab.<br><br>If you don\'t have it saved: go to <strong>Keys &amp; Tokens → OAuth 1.0 Keys → Regenerate</strong>. Copy <em>both</em> the new Consumer Key and Consumer Secret that appear in the popup.' },
-        { title: "Add to Space secrets", body: 'Add both env vars below to your HF Space settings → Variables &amp; Secrets, then restart the Space.' },
+        {
+          title: "Create an X Developer App",
+          body: 'Apply for a developer account at <a href="https://developer.twitter.com" target="_blank" rel="noopener" style="color:#f472b6">developer.twitter.com</a> if you don\'t have one. Create a new project + app.',
+        },
+        {
+          title: "Enable OAuth 1.0a + set permissions",
+          body: "On your app page → <strong>User authentication settings → Set up</strong>. Enable <strong>OAuth 1.0a</strong>. Set App permissions to <strong>Read and Write</strong>. Set Type of App to <strong>Native App</strong> (⚠️ must be Native App, not Web App — Web App breaks OAuth 1.0a).",
+        },
+        {
+          title: "Add callback URL",
+          body: "In the same setup screen, under <strong>Callback URI / Redirect URL</strong>, paste the Callback URL shown below.",
+        },
+        {
+          title: "Get your Consumer Secret",
+          body: "<strong>⚠️ The Consumer Secret (X_API_SECRET) is only shown once</strong> — right after app creation, or after you click <strong>Regenerate</strong> on the Consumer Key row in the Keys &amp; Tokens tab.<br><br>If you don't have it saved: go to <strong>Keys &amp; Tokens → OAuth 1.0 Keys → Regenerate</strong>. Copy <em>both</em> the new Consumer Key and Consumer Secret that appear in the popup.",
+        },
+        {
+          title: "Add to Space secrets",
+          body: "Add both env vars below to your HF Space settings → Variables &amp; Secrets, then restart the Space.",
+        },
       ],
     },
     {
@@ -149,16 +313,38 @@ function getOAuthPlatformDetails(publicUrl) {
       docsUrl: "https://developers.facebook.com/docs/facebook-login/web",
       callbackUrl: cb("facebook"),
       envVars: [
-        { name: "FACEBOOK_APP_ID",     desc: "App ID",     set: !!e.FACEBOOK_APP_ID },
-        { name: "FACEBOOK_APP_SECRET", desc: "App Secret", set: !!e.FACEBOOK_APP_SECRET },
+        { name: "FACEBOOK_APP_ID", desc: "App ID", set: !!e.FACEBOOK_APP_ID },
+        {
+          name: "FACEBOOK_APP_SECRET",
+          desc: "App Secret",
+          set: !!e.FACEBOOK_APP_SECRET,
+        },
       ],
       steps: [
-        { title: "Create a Meta App", body: 'Go to Meta for Developers. Create a new app with use case <strong>Authenticate and request data from users</strong>.' },
-        { title: "Add Facebook Login product", body: 'In the app dashboard, click <strong>Add Product</strong> → Facebook Login → Web.' },
-        { title: "Add callback URL", body: 'In Facebook Login settings → Valid OAuth Redirect URIs, paste the callback URL below.' },
-        { title: "Request permissions", body: 'Add <strong>pages_manage_posts</strong>, <strong>pages_read_engagement</strong>, <strong>publish_to_groups</strong> permissions.' },
-        { title: "Copy credentials", body: 'From <strong>App Settings → Basic</strong>, copy App ID and App Secret.' },
-        { title: "Add to Space secrets", body: 'Add both env vars below to your HF Space settings, then restart.' },
+        {
+          title: "Create a Meta App",
+          body: "Go to Meta for Developers. Create a new app with use case <strong>Authenticate and request data from users</strong>.",
+        },
+        {
+          title: "Add Facebook Login product",
+          body: "In the app dashboard, click <strong>Add Product</strong> → Facebook Login → Web.",
+        },
+        {
+          title: "Add callback URL",
+          body: "In Facebook Login settings → Valid OAuth Redirect URIs, paste the callback URL below.",
+        },
+        {
+          title: "Request permissions",
+          body: "Add <strong>pages_manage_posts</strong>, <strong>pages_read_engagement</strong>, <strong>publish_to_groups</strong> permissions.",
+        },
+        {
+          title: "Copy credentials",
+          body: "From <strong>App Settings → Basic</strong>, copy App ID and App Secret.",
+        },
+        {
+          title: "Add to Space secrets",
+          body: "Add both env vars below to your HF Space settings, then restart.",
+        },
       ],
     },
     {
@@ -169,15 +355,38 @@ function getOAuthPlatformDetails(publicUrl) {
       docsUrl: "https://developers.facebook.com/docs/instagram-api",
       callbackUrl: cb("instagram"),
       envVars: [
-        { name: "FACEBOOK_APP_ID",     desc: "App ID (same as Facebook app)", set: !!e.FACEBOOK_APP_ID },
-        { name: "FACEBOOK_APP_SECRET", desc: "App Secret (same as Facebook app)", set: !!e.FACEBOOK_APP_SECRET },
+        {
+          name: "FACEBOOK_APP_ID",
+          desc: "App ID (same as Facebook app)",
+          set: !!e.FACEBOOK_APP_ID,
+        },
+        {
+          name: "FACEBOOK_APP_SECRET",
+          desc: "App Secret (same as Facebook app)",
+          set: !!e.FACEBOOK_APP_SECRET,
+        },
       ],
       steps: [
-        { title: "Use the Facebook app", body: 'Instagram uses the same Meta app as Facebook — configure Facebook first.' },
-        { title: "Add Instagram Graph API product", body: 'In your Meta app dashboard, click <strong>Add Product</strong> → Instagram Graph API.' },
-        { title: "Connect an Instagram Business account", body: 'Your Instagram account must be a <strong>Professional (Business or Creator)</strong> account linked to a Facebook Page.' },
-        { title: "Add callback URL", body: 'In Instagram Login settings → Valid OAuth Redirect URIs, paste the callback URL below.' },
-        { title: "No extra env vars needed", body: 'Instagram and Facebook share <code>FACEBOOK_APP_ID</code> and <code>FACEBOOK_APP_SECRET</code>.' },
+        {
+          title: "Use the Facebook app",
+          body: "Instagram uses the same Meta app as Facebook — configure Facebook first.",
+        },
+        {
+          title: "Add Instagram Graph API product",
+          body: "In your Meta app dashboard, click <strong>Add Product</strong> → Instagram Graph API.",
+        },
+        {
+          title: "Connect an Instagram Business account",
+          body: "Your Instagram account must be a <strong>Professional (Business or Creator)</strong> account linked to a Facebook Page.",
+        },
+        {
+          title: "Add callback URL",
+          body: "In Instagram Login settings → Valid OAuth Redirect URIs, paste the callback URL below.",
+        },
+        {
+          title: "No extra env vars needed",
+          body: "Instagram and Facebook share <code>FACEBOOK_APP_ID</code> and <code>FACEBOOK_APP_SECRET</code>.",
+        },
       ],
     },
     {
@@ -188,15 +397,34 @@ function getOAuthPlatformDetails(publicUrl) {
       docsUrl: "https://developers.facebook.com/docs/threads",
       callbackUrl: cb("threads"),
       envVars: [
-        { name: "THREADS_APP_ID",     desc: "App ID",     set: !!e.THREADS_APP_ID },
-        { name: "THREADS_APP_SECRET", desc: "App Secret", set: !!e.THREADS_APP_SECRET },
+        { name: "THREADS_APP_ID", desc: "App ID", set: !!e.THREADS_APP_ID },
+        {
+          name: "THREADS_APP_SECRET",
+          desc: "App Secret",
+          set: !!e.THREADS_APP_SECRET,
+        },
       ],
       steps: [
-        { title: "Create a Meta App", body: 'Create a Meta Developer app (separate from Facebook/Instagram if you prefer clean separation).' },
-        { title: "Add Threads API product", body: 'In the app dashboard, click <strong>Add Product</strong> → Threads API.' },
-        { title: "Add callback URL", body: 'In Threads API settings → Redirect URI, paste the callback URL below.' },
-        { title: "Copy credentials", body: 'From <strong>App Settings → Basic</strong>, copy App ID and App Secret.' },
-        { title: "Add to Space secrets", body: 'Add both env vars below to your HF Space settings, then restart.' },
+        {
+          title: "Create a Meta App",
+          body: "Create a Meta Developer app (separate from Facebook/Instagram if you prefer clean separation).",
+        },
+        {
+          title: "Add Threads API product",
+          body: "In the app dashboard, click <strong>Add Product</strong> → Threads API.",
+        },
+        {
+          title: "Add callback URL",
+          body: "In Threads API settings → Redirect URI, paste the callback URL below.",
+        },
+        {
+          title: "Copy credentials",
+          body: "From <strong>App Settings → Basic</strong>, copy App ID and App Secret.",
+        },
+        {
+          title: "Add to Space secrets",
+          body: "Add both env vars below to your HF Space settings, then restart.",
+        },
       ],
     },
     {
@@ -204,20 +432,50 @@ function getOAuthPlatformDetails(publicUrl) {
       name: "YouTube",
       emoji: "▶️",
       setupUrl: "https://console.cloud.google.com/apis/credentials",
-      docsUrl: "https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps",
+      docsUrl:
+        "https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps",
       callbackUrl: cb("youtube"),
       envVars: [
-        { name: "YOUTUBE_CLIENT_ID",     desc: "OAuth 2.0 Client ID",     set: !!e.YOUTUBE_CLIENT_ID },
-        { name: "YOUTUBE_CLIENT_SECRET", desc: "OAuth 2.0 Client Secret", set: !!e.YOUTUBE_CLIENT_SECRET },
+        {
+          name: "YOUTUBE_CLIENT_ID",
+          desc: "OAuth 2.0 Client ID",
+          set: !!e.YOUTUBE_CLIENT_ID,
+        },
+        {
+          name: "YOUTUBE_CLIENT_SECRET",
+          desc: "OAuth 2.0 Client Secret",
+          set: !!e.YOUTUBE_CLIENT_SECRET,
+        },
       ],
       steps: [
-        { title: "Create a Google Cloud project", body: 'Go to Google Cloud Console. Create a new project (or use existing).' },
-        { title: "Enable YouTube Data API v3", body: 'In APIs & Services → Library, search for <strong>YouTube Data API v3</strong> and enable it.' },
-        { title: "Create OAuth credentials", body: 'In APIs & Services → Credentials, click <strong>Create Credentials → OAuth client ID</strong>. Set type to <strong>Web application</strong>.' },
-        { title: "Add callback URL", body: 'Under Authorized redirect URIs, paste the callback URL below.' },
-        { title: "Configure OAuth consent screen", body: 'Set up consent screen with your app name. Add <strong>YouTube</strong> scopes.' },
-        { title: "Copy credentials", body: 'Download or copy the <strong>Client ID</strong> and <strong>Client Secret</strong>.' },
-        { title: "Add to Space secrets", body: 'Add both env vars below to your HF Space settings, then restart.' },
+        {
+          title: "Create a Google Cloud project",
+          body: "Go to Google Cloud Console. Create a new project (or use existing).",
+        },
+        {
+          title: "Enable YouTube Data API v3",
+          body: "In APIs & Services → Library, search for <strong>YouTube Data API v3</strong> and enable it.",
+        },
+        {
+          title: "Create OAuth credentials",
+          body: "In APIs & Services → Credentials, click <strong>Create Credentials → OAuth client ID</strong>. Set type to <strong>Web application</strong>.",
+        },
+        {
+          title: "Add callback URL",
+          body: "Under Authorized redirect URIs, paste the callback URL below.",
+        },
+        {
+          title: "Configure OAuth consent screen",
+          body: "Set up consent screen with your app name. Add <strong>YouTube</strong> scopes.",
+        },
+        {
+          title: "Copy credentials",
+          body: "Download or copy the <strong>Client ID</strong> and <strong>Client Secret</strong>.",
+        },
+        {
+          title: "Add to Space secrets",
+          body: "Add both env vars below to your HF Space settings, then restart.",
+        },
       ],
     },
     {
@@ -228,17 +486,46 @@ function getOAuthPlatformDetails(publicUrl) {
       docsUrl: "https://developers.tiktok.com/doc/login-kit-web",
       callbackUrl: cb("tiktok"),
       envVars: [
-        { name: "TIKTOK_CLIENT_ID",     desc: "Client Key",    set: !!e.TIKTOK_CLIENT_ID },
-        { name: "TIKTOK_CLIENT_SECRET", desc: "Client Secret", set: !!e.TIKTOK_CLIENT_SECRET },
+        {
+          name: "TIKTOK_CLIENT_ID",
+          desc: "Client Key",
+          set: !!e.TIKTOK_CLIENT_ID,
+        },
+        {
+          name: "TIKTOK_CLIENT_SECRET",
+          desc: "Client Secret",
+          set: !!e.TIKTOK_CLIENT_SECRET,
+        },
       ],
       steps: [
-        { title: "Apply for TikTok Developer access", body: 'Sign in at developers.tiktok.com. Apply for developer access (may take 1-2 days).' },
-        { title: "Create an app", body: 'Create a new app. Set <strong>Platform: Web</strong>.' },
-        { title: "Add Login Kit", body: 'Add <strong>Login Kit</strong> product. This enables OAuth for your app.' },
-        { title: "Add callback URL", body: 'In Login Kit settings → Redirect domain, add your HF Space hostname. In redirect URI, paste the callback URL below.' },
-        { title: "Request Content Posting API", body: 'Add <strong>Content Posting API</strong> product for posting videos/photos.' },
-        { title: "Copy credentials", body: 'From app overview, copy <strong>Client Key</strong> (as CLIENT_ID) and <strong>Client Secret</strong>.' },
-        { title: "Add to Space secrets", body: 'Add both env vars below to your HF Space settings, then restart.' },
+        {
+          title: "Apply for TikTok Developer access",
+          body: "Sign in at developers.tiktok.com. Apply for developer access (may take 1-2 days).",
+        },
+        {
+          title: "Create an app",
+          body: "Create a new app. Set <strong>Platform: Web</strong>.",
+        },
+        {
+          title: "Add Login Kit",
+          body: "Add <strong>Login Kit</strong> product. This enables OAuth for your app.",
+        },
+        {
+          title: "Add callback URL",
+          body: "In Login Kit settings → Redirect domain, add your HF Space hostname. In redirect URI, paste the callback URL below.",
+        },
+        {
+          title: "Request Content Posting API",
+          body: "Add <strong>Content Posting API</strong> product for posting videos/photos.",
+        },
+        {
+          title: "Copy credentials",
+          body: "From app overview, copy <strong>Client Key</strong> (as CLIENT_ID) and <strong>Client Secret</strong>.",
+        },
+        {
+          title: "Add to Space secrets",
+          body: "Add both env vars below to your HF Space settings, then restart.",
+        },
       ],
     },
     {
@@ -249,15 +536,38 @@ function getOAuthPlatformDetails(publicUrl) {
       docsUrl: "https://github.com/reddit-archive/reddit/wiki/OAuth2",
       callbackUrl: cb("reddit"),
       envVars: [
-        { name: "REDDIT_CLIENT_ID",     desc: "Client ID (under app name)", set: !!e.REDDIT_CLIENT_ID },
-        { name: "REDDIT_CLIENT_SECRET", desc: "Secret",                     set: !!e.REDDIT_CLIENT_SECRET },
+        {
+          name: "REDDIT_CLIENT_ID",
+          desc: "Client ID (under app name)",
+          set: !!e.REDDIT_CLIENT_ID,
+        },
+        {
+          name: "REDDIT_CLIENT_SECRET",
+          desc: "Secret",
+          set: !!e.REDDIT_CLIENT_SECRET,
+        },
       ],
       steps: [
-        { title: "Go to Reddit App Preferences", body: 'Visit reddit.com/prefs/apps while logged in.' },
-        { title: "Create a new app", body: 'Click <strong>create another app…</strong>. Set type to <strong>web app</strong>.' },
-        { title: "Add callback URL", body: 'In the <strong>redirect uri</strong> field, paste the callback URL below.' },
-        { title: "Copy credentials", body: 'The Client ID is the string below the app name. Client Secret is labelled "secret".' },
-        { title: "Add to Space secrets", body: 'Add both env vars below to your HF Space settings, then restart.' },
+        {
+          title: "Go to Reddit App Preferences",
+          body: "Visit reddit.com/prefs/apps while logged in.",
+        },
+        {
+          title: "Create a new app",
+          body: "Click <strong>create another app…</strong>. Set type to <strong>web app</strong>.",
+        },
+        {
+          title: "Add callback URL",
+          body: "In the <strong>redirect uri</strong> field, paste the callback URL below.",
+        },
+        {
+          title: "Copy credentials",
+          body: 'The Client ID is the string below the app name. Client Secret is labelled "secret".',
+        },
+        {
+          title: "Add to Space secrets",
+          body: "Add both env vars below to your HF Space settings, then restart.",
+        },
       ],
     },
     {
@@ -265,18 +575,42 @@ function getOAuthPlatformDetails(publicUrl) {
       name: "Pinterest",
       emoji: "📌",
       setupUrl: "https://developers.pinterest.com/apps/",
-      docsUrl: "https://developers.pinterest.com/docs/getting-started/set-up-app/",
+      docsUrl:
+        "https://developers.pinterest.com/docs/getting-started/set-up-app/",
       callbackUrl: cb("pinterest"),
       envVars: [
-        { name: "PINTEREST_CLIENT_ID",     desc: "App ID",     set: !!e.PINTEREST_CLIENT_ID },
-        { name: "PINTEREST_CLIENT_SECRET", desc: "App Secret", set: !!e.PINTEREST_CLIENT_SECRET },
+        {
+          name: "PINTEREST_CLIENT_ID",
+          desc: "App ID",
+          set: !!e.PINTEREST_CLIENT_ID,
+        },
+        {
+          name: "PINTEREST_CLIENT_SECRET",
+          desc: "App Secret",
+          set: !!e.PINTEREST_CLIENT_SECRET,
+        },
       ],
       steps: [
-        { title: "Create a Pinterest App", body: 'Go to Pinterest Developer Portal and create a new app.' },
-        { title: "Add redirect URI", body: 'In app settings, add the callback URL below as a redirect URI.' },
-        { title: "Request scopes", body: 'Request <strong>boards:read</strong>, <strong>pins:read</strong>, <strong>pins:write</strong> scopes.' },
-        { title: "Copy credentials", body: 'Copy App ID and App Secret from the app settings.' },
-        { title: "Add to Space secrets", body: 'Add both env vars below to your HF Space settings, then restart.' },
+        {
+          title: "Create a Pinterest App",
+          body: "Go to Pinterest Developer Portal and create a new app.",
+        },
+        {
+          title: "Add redirect URI",
+          body: "In app settings, add the callback URL below as a redirect URI.",
+        },
+        {
+          title: "Request scopes",
+          body: "Request <strong>boards:read</strong>, <strong>pins:read</strong>, <strong>pins:write</strong> scopes.",
+        },
+        {
+          title: "Copy credentials",
+          body: "Copy App ID and App Secret from the app settings.",
+        },
+        {
+          title: "Add to Space secrets",
+          body: "Add both env vars below to your HF Space settings, then restart.",
+        },
       ],
     },
     {
@@ -287,16 +621,43 @@ function getOAuthPlatformDetails(publicUrl) {
       docsUrl: "https://discord.com/developers/docs/topics/oauth2",
       callbackUrl: cb("discord"),
       envVars: [
-        { name: "DISCORD_CLIENT_ID",     desc: "Application ID",      set: !!e.DISCORD_CLIENT_ID },
-        { name: "DISCORD_CLIENT_SECRET", desc: "Client Secret",        set: !!e.DISCORD_CLIENT_SECRET },
-        { name: "DISCORD_BOT_TOKEN_ID",  desc: "Bot Token",            set: !!e.DISCORD_BOT_TOKEN_ID },
+        {
+          name: "DISCORD_CLIENT_ID",
+          desc: "Application ID",
+          set: !!e.DISCORD_CLIENT_ID,
+        },
+        {
+          name: "DISCORD_CLIENT_SECRET",
+          desc: "Client Secret",
+          set: !!e.DISCORD_CLIENT_SECRET,
+        },
+        {
+          name: "DISCORD_BOT_TOKEN_ID",
+          desc: "Bot Token",
+          set: !!e.DISCORD_BOT_TOKEN_ID,
+        },
       ],
       steps: [
-        { title: "Create a Discord Application", body: 'Go to Discord Developer Portal → New Application.' },
-        { title: "Add redirect URL", body: 'In <strong>OAuth2 → Redirects</strong>, paste the callback URL below.' },
-        { title: "Create a Bot", body: 'In the <strong>Bot</strong> section, create a bot. Enable <strong>Message Content Intent</strong>.' },
-        { title: "Copy credentials", body: 'Copy Client ID and Client Secret from OAuth2 tab. Copy Bot Token from Bot tab.' },
-        { title: "Add to Space secrets", body: 'Add all three env vars below to your HF Space settings, then restart.' },
+        {
+          title: "Create a Discord Application",
+          body: "Go to Discord Developer Portal → New Application.",
+        },
+        {
+          title: "Add redirect URL",
+          body: "In <strong>OAuth2 → Redirects</strong>, paste the callback URL below.",
+        },
+        {
+          title: "Create a Bot",
+          body: "In the <strong>Bot</strong> section, create a bot. Enable <strong>Message Content Intent</strong>.",
+        },
+        {
+          title: "Copy credentials",
+          body: "Copy Client ID and Client Secret from OAuth2 tab. Copy Bot Token from Bot tab.",
+        },
+        {
+          title: "Add to Space secrets",
+          body: "Add all three env vars below to your HF Space settings, then restart.",
+        },
       ],
     },
     {
@@ -307,17 +668,39 @@ function getOAuthPlatformDetails(publicUrl) {
       docsUrl: "https://api.slack.com/authentication/oauth-v2",
       callbackUrl: cb("slack"),
       envVars: [
-        { name: "SLACK_ID",             desc: "Client ID",      set: !!e.SLACK_ID },
-        { name: "SLACK_SECRET",         desc: "Client Secret",  set: !!e.SLACK_SECRET },
-        { name: "SLACK_SIGNING_SECRET", desc: "Signing Secret", set: !!e.SLACK_SIGNING_SECRET },
+        { name: "SLACK_ID", desc: "Client ID", set: !!e.SLACK_ID },
+        { name: "SLACK_SECRET", desc: "Client Secret", set: !!e.SLACK_SECRET },
+        {
+          name: "SLACK_SIGNING_SECRET",
+          desc: "Signing Secret",
+          set: !!e.SLACK_SIGNING_SECRET,
+        },
       ],
       steps: [
-        { title: "Create a Slack App", body: 'Go to api.slack.com/apps → Create New App → From scratch.' },
-        { title: "Add OAuth redirect URL", body: 'In <strong>OAuth & Permissions → Redirect URLs</strong>, paste the callback URL below.' },
-        { title: "Add Bot Token Scopes", body: 'Under Bot Token Scopes, add: <code>channels:join</code>, <code>chat:write</code>, <code>channels:read</code>, <code>groups:read</code>.' },
-        { title: "Install to workspace", body: 'Click <strong>Install to Workspace</strong> to generate tokens.' },
-        { title: "Copy credentials", body: 'From <strong>Basic Information</strong>: App Credentials has Client ID, Client Secret, Signing Secret.' },
-        { title: "Add to Space secrets", body: 'Add all three env vars below to your HF Space settings, then restart.' },
+        {
+          title: "Create a Slack App",
+          body: "Go to api.slack.com/apps → Create New App → From scratch.",
+        },
+        {
+          title: "Add OAuth redirect URL",
+          body: "In <strong>OAuth & Permissions → Redirect URLs</strong>, paste the callback URL below.",
+        },
+        {
+          title: "Add Bot Token Scopes",
+          body: "Under Bot Token Scopes, add: <code>channels:join</code>, <code>chat:write</code>, <code>channels:read</code>, <code>groups:read</code>.",
+        },
+        {
+          title: "Install to workspace",
+          body: "Click <strong>Install to Workspace</strong> to generate tokens.",
+        },
+        {
+          title: "Copy credentials",
+          body: "From <strong>Basic Information</strong>: App Credentials has Client ID, Client Secret, Signing Secret.",
+        },
+        {
+          title: "Add to Space secrets",
+          body: "Add all three env vars below to your HF Space settings, then restart.",
+        },
       ],
     },
   ];
@@ -326,36 +709,48 @@ function getOAuthPlatformDetails(publicUrl) {
 function renderSetupPage() {
   const spaceHost = process.env.SPACE_HOST || null;
   const spaceId = process.env.SPACE_ID || null;
-  const publicUrl = spaceHost ? `https://${spaceHost}` : "http://localhost:7860";
+  const publicUrl = spaceHost
+    ? `https://${spaceHost}`
+    : "http://localhost:7860";
   const settingsUrl = spaceId
     ? `https://huggingface.co/spaces/${spaceId}/settings`
     : "https://huggingface.co/settings/spaces";
 
   const platforms = getOAuthPlatformDetails(publicUrl);
-  const configuredCount = platforms.filter(p => p.envVars.every(v => v.set)).length;
+  const configuredCount = platforms.filter((p) =>
+    p.envVars.every((v) => v.set),
+  ).length;
 
   // Build sidebar items
-  const sidebarItems = platforms.map((p, i) => {
-    const allSet = p.envVars.every(v => v.set);
-    const anySet = p.envVars.some(v => v.set);
-    const indicator = allSet ? "✅" : anySet ? "⚠️" : "⚪";
-    return `<button class="plat-tab${i === 0 ? " active" : ""}" onclick="show(${i})" id="tab-${i}">
+  const sidebarItems = platforms
+    .map((p, i) => {
+      const allSet = p.envVars.every((v) => v.set);
+      const anySet = p.envVars.some((v) => v.set);
+      const indicator = allSet ? "✅" : anySet ? "⚠️" : "⚪";
+      return `<button class="plat-tab${i === 0 ? " active" : ""}" onclick="show(${i})" id="tab-${i}">
       <span class="tab-emoji">${p.emoji}</span>
       <span class="tab-name">${p.name}</span>
       <span class="tab-indicator">${indicator}</span>
     </button>`;
-  }).join("");
+    })
+    .join("");
 
   // Build detail panels
-  const panels = platforms.map((p, i) => {
-    const allSet = p.envVars.every(v => v.set);
+  const panels = platforms
+    .map((p, i) => {
+      const allSet = p.envVars.every((v) => v.set);
 
-    const stepsList = p.steps.map((s, si) =>
-      `<div class="step"><div class="step-num">${si + 1}</div><div><div class="step-title">${s.title}</div><div class="step-body">${s.body}</div></div></div>`
-    ).join("");
+      const stepsList = p.steps
+        .map(
+          (s, si) =>
+            `<div class="step"><div class="step-num">${si + 1}</div><div><div class="step-title">${s.title}</div><div class="step-body">${s.body}</div></div></div>`,
+        )
+        .join("");
 
-    const envRows = p.envVars.map(v =>
-      `<div class="env-row">
+      const envRows = p.envVars
+        .map(
+          (v) =>
+            `<div class="env-row">
         <div class="env-info">
           <code class="env-name">${v.name}</code>
           <span class="env-desc">${v.desc}</span>
@@ -364,16 +759,17 @@ function renderSetupPage() {
           ${v.set ? '<span class="badge badge-on" style="font-size:.7rem">Set ✓</span>' : '<span class="badge badge-off" style="font-size:.7rem">Not set</span>'}
           <button class="copy-btn" onclick="copy('${v.name}', this)">Copy name</button>
         </div>
-      </div>`
-    ).join("");
+      </div>`,
+        )
+        .join("");
 
-    const statusBanner = allSet
-      ? `<div class="status-banner banner-ok">✅ All credentials configured — restart Space if you just added them.</div>`
-      : p.envVars.some(v => v.set)
-      ? `<div class="status-banner banner-warn">⚠️ Partially configured — check missing env vars below.</div>`
-      : `<div class="status-banner banner-info">ℹ️ Not yet configured — follow the steps below.</div>`;
+      const statusBanner = allSet
+        ? `<div class="status-banner banner-ok">✅ All credentials configured — restart Space if you just added them.</div>`
+        : p.envVars.some((v) => v.set)
+          ? `<div class="status-banner banner-warn">⚠️ Partially configured — check missing env vars below.</div>`
+          : `<div class="status-banner banner-info">ℹ️ Not yet configured — follow the steps below.</div>`;
 
-    return `<div class="panel${i === 0 ? " active" : ""}" id="panel-${i}">
+      return `<div class="panel${i === 0 ? " active" : ""}" id="panel-${i}">
       <div class="panel-header">
         <span class="panel-emoji">${p.emoji}</span>
         <div>
@@ -402,7 +798,8 @@ function renderSetupPage() {
         <p class="hint">After adding secrets, click <strong>Restart Space</strong> for them to take effect.</p>
       </div>
     </div>`;
-  }).join("");
+    })
+    .join("");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -510,7 +907,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);heig
   </main>
 </div>
 <script>
-const PLATFORM_IDS = ${JSON.stringify(platforms.map(p => p.id))};
+const PLATFORM_IDS = ${JSON.stringify(platforms.map((p) => p.id))};
 function show(i) {
   document.querySelectorAll('.plat-tab').forEach((t,j) => t.classList.toggle('active', j===i));
   document.querySelectorAll('.panel').forEach((p,j) => p.classList.toggle('active', j===i));
@@ -553,8 +950,11 @@ function copy(text, btn) {
 // ============================================================================
 
 function parseRequestUrl(url) {
-  try { return new URL(url, "http://localhost"); }
-  catch { return new URL("http://localhost/"); }
+  try {
+    return new URL(url, "http://localhost");
+  } catch {
+    return new URL("http://localhost/");
+  }
 }
 
 function isLocalRoute(pathname) {
@@ -575,7 +975,9 @@ function isLocalRoute(pathname) {
 function getKeepaliveStatus() {
   try {
     if (fs.existsSync(CLOUDFLARE_KEEPALIVE_STATUS_FILE)) {
-      return JSON.parse(fs.readFileSync(CLOUDFLARE_KEEPALIVE_STATUS_FILE, "utf8"));
+      return JSON.parse(
+        fs.readFileSync(CLOUDFLARE_KEEPALIVE_STATUS_FILE, "utf8"),
+      );
     }
   } catch {}
   return null;
@@ -593,7 +995,13 @@ function toneBadge(label, tone = "neutral") {
   return `<span class="badge ${tone}">${escapeHtml(label)}</span>`;
 }
 
-function renderTile({ title, value, detail = "", tone = "neutral", meta = "" }) {
+function renderTile({
+  title,
+  value,
+  detail = "",
+  tone = "neutral",
+  meta = "",
+}) {
   return `<article class="tile ${tone}">
     <div class="tile-head">
       <span class="tile-title">${escapeHtml(title)}</span>
@@ -617,25 +1025,41 @@ function readSyncStatus() {
   } catch {}
   if (HF_BACKUP_ENABLED) {
     return {
-      db_status: "unknown", last_sync_time: null, last_error: null, sync_count: 0,
+      db_status: "unknown",
+      last_sync_time: null,
+      last_error: null,
+      sync_count: 0,
       status: "configured",
       message: `Backup enabled. Waiting for first sync (every ${SYNC_INTERVAL}s).`,
     };
   }
-  return { db_status: "unknown", last_sync_time: null, last_error: null, sync_count: 0 };
+  return {
+    db_status: "unknown",
+    last_sync_time: null,
+    last_error: null,
+    sync_count: 0,
+  };
 }
 
 function checkPostizHealth() {
   return new Promise((resolve) => {
-    const timeout = setTimeout(() => resolve({ status: "unreachable", reason: "timeout" }), 5000);
-    http.get(`http://${POSTIZ_HOST}:${POSTIZ_PORT}/`, (res) => {
-      clearTimeout(timeout);
-      resolve({ status: res.statusCode < 500 ? "running" : "error", statusCode: res.statusCode });
-      res.resume();
-    }).on("error", (err) => {
-      clearTimeout(timeout);
-      resolve({ status: "unreachable", reason: err.message });
-    });
+    const timeout = setTimeout(
+      () => resolve({ status: "unreachable", reason: "timeout" }),
+      5000,
+    );
+    http
+      .get(`http://${POSTIZ_HOST}:${POSTIZ_PORT}/`, (res) => {
+        clearTimeout(timeout);
+        resolve({
+          status: res.statusCode < 500 ? "running" : "error",
+          statusCode: res.statusCode,
+        });
+        res.resume();
+      })
+      .on("error", (err) => {
+        clearTimeout(timeout);
+        resolve({ status: "unreachable", reason: err.message });
+      });
   });
 }
 
@@ -651,12 +1075,16 @@ function formatUptime(seconds) {
 
 function renderDashboard(data) {
   const syncStatus = String(data.sync?.status || "unknown");
-  const syncTone = ["success", "restored", "synced", "configured"].includes(syncStatus)
+  const syncTone = ["success", "restored", "synced", "configured"].includes(
+    syncStatus,
+  )
     ? "ok"
     : syncStatus === "disabled"
       ? "warn"
       : "neutral";
-  const backupDetail = data.sync?.message ? escapeHtml(data.sync.message) : "No status yet";
+  const backupDetail = data.sync?.message
+    ? escapeHtml(data.sync.message)
+    : "No status yet";
 
   const keepaliveConfigured = data.keepalive?.configured === true;
   const keepaliveStatus = String(
@@ -670,41 +1098,52 @@ function renderDashboard(data) {
       : "neutral";
   const keepAliveDetail = keepaliveConfigured
     ? `Pinging <code>${escapeHtml(data.keepalive.targetUrl || "/health")}</code>`
-    : process.env.CLOUDFLARE_WORKERS_TOKEN
-      ? "Worker pending or failed"
-      : "Not configured";
+    : keepaliveStatus === "error" && data.keepalive?.message
+      ? escapeHtml(data.keepalive.message)
+      : process.env.CLOUDFLARE_WORKERS_TOKEN
+        ? "Worker pending or failed"
+        : "Not configured";
 
   const platforms = getSocialPlatforms();
-  const readyNow = platforms.filter(p => p.noOAuth);
-  const needsSetup = platforms.filter(p => !p.noOAuth);
-  const configuredCount = needsSetup.filter(p => p.ready).length;
+  const readyNow = platforms.filter((p) => p.noOAuth);
+  const needsSetup = platforms.filter((p) => !p.noOAuth);
+  const configuredCount = needsSetup.filter((p) => p.ready).length;
 
-  const needsSetupRows = needsSetup.map(p => {
-    if (p.ready) {
-      return `<div class="plat-row ready">
+  const needsSetupRows = needsSetup
+    .map((p) => {
+      if (p.ready) {
+        return `<div class="plat-row ready">
         <span class="plat-icon">${p.emoji}</span>
         <span class="plat-name">${p.name}</span>
         <span class="badge ok" style="font-size:0.72rem">Configured</span>
       </div>`;
-    }
-    return `<div class="plat-row">
+      }
+      return `<div class="plat-row">
       <span class="plat-icon" style="filter:grayscale(1);opacity:.5">${p.emoji}</span>
       <span class="plat-name" style="color:var(--dim)">${p.name}</span>
       <a class="setup-link" href="/setup#${p.id}" style="margin-right:4px">Setup guide →</a>
     </div>`;
-  }).join("");
+    })
+    .join("");
 
-  const readyNowRows = readyNow.map(p => `
+  const readyNowRows = readyNow
+    .map(
+      (p) => `
     <div class="plat-row ready">
       <span class="plat-icon">${p.emoji}</span>
       <span class="plat-name">${p.name}</span>
       <span style="font-size:0.75rem;color:var(--dim)">${p.note || ""}</span>
-    </div>`).join("");
+    </div>`,
+    )
+    .join("");
 
   const tiles = [
     renderTile({
       title: "Postiz Core",
-      value: toneBadge(data.postizRunning ? "Online" : "Booting", data.postizRunning ? "ok" : "warn"),
+      value: toneBadge(
+        data.postizRunning ? "Online" : "Booting",
+        data.postizRunning ? "ok" : "warn",
+      ),
       detail: `Backend Port ${POSTIZ_PORT}`,
       tone: data.postizRunning ? "ok" : "warn",
     }),
@@ -722,7 +1161,10 @@ function renderDashboard(data) {
     }),
     renderTile({
       title: "Keep Awake",
-      value: toneBadge(keepaliveConfigured ? "CF Cron" : keepaliveStatus.toUpperCase(), keepAliveTone),
+      value: toneBadge(
+        keepaliveConfigured ? "CF Cron" : keepaliveStatus.toUpperCase(),
+        keepAliveTone,
+      ),
       detail: keepAliveDetail,
       tone: keepAliveTone,
     }),
@@ -798,9 +1240,11 @@ function renderDashboard(data) {
       <div class="subtitle">Self-hosted Postiz Dashboard</div>
     </header>
 
-    ${data.postizRunning
-      ? `<a href="/app/auth" class="hero-action" target="_blank" rel="noopener">Open Postiz -></a>`
-      : `<a href="#" class="hero-action booting" onclick="return false">Postiz is starting up (first boot ~5 min)...</a>`}
+    ${
+      data.postizRunning
+        ? `<a href="/app/auth" class="hero-action" target="_blank" rel="noopener">Open Postiz -></a>`
+        : `<a href="#" class="hero-action booting" onclick="return false">Postiz is starting up (first boot ~5 min)...</a>`
+    }
 
     <section class="overview">
       ${tiles}
@@ -870,8 +1314,12 @@ function renderDashboard(data) {
 
 function buildProxyHeaders(headers) {
   const f = headers["x-forwarded-for"];
-  const clientIp = typeof f === "string" ? f.split(",")[0].trim()
-    : (Array.isArray(f) && f.length ? String(f[0]).split(",")[0].trim() : "");
+  const clientIp =
+    typeof f === "string"
+      ? f.split(",")[0].trim()
+      : Array.isArray(f) && f.length
+        ? String(f[0]).split(",")[0].trim()
+        : "";
   return {
     ...headers,
     host: `${POSTIZ_HOST}:${POSTIZ_PORT}`,
@@ -927,28 +1375,39 @@ function proxyHttp(req, res, overridePath) {
   const targetPath = overridePath !== undefined ? overridePath : req.url;
   let upstreamStarted = false;
   const proxyReq = http.request(
-    { hostname: POSTIZ_HOST, port: POSTIZ_PORT, method: req.method,
-      path: targetPath, headers: buildProxyHeaders(req.headers) },
+    {
+      hostname: POSTIZ_HOST,
+      port: POSTIZ_PORT,
+      method: req.method,
+      path: targetPath,
+      headers: buildProxyHeaders(req.headers),
+    },
     (proxyRes) => {
       upstreamStarted = true;
       // Rewrite Location headers: add /app basePath if missing, convert
       // internal-host absolute URLs to relative paths.
       const outHeaders = Object.assign({}, proxyRes.headers);
       const fixedLoc = rewriteLocation(outHeaders["location"]);
-      if (fixedLoc !== outHeaders["location"]) outHeaders["location"] = fixedLoc;
+      if (fixedLoc !== outHeaders["location"])
+        outHeaders["location"] = fixedLoc;
       res.writeHead(proxyRes.statusCode || 502, outHeaders);
       proxyRes.pipe(res);
     },
   );
   proxyReq.on("error", (error) => {
-    if (res.headersSent || upstreamStarted) { res.destroy(); return; }
+    if (res.headersSent || upstreamStarted) {
+      res.destroy();
+      return;
+    }
     res.writeHead(502, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      status: "error",
-      message: "Postiz unavailable",
-      detail: error.message,
-      hint: "Postiz may still be starting (first boot ~60s after build). Check the Logs tab.",
-    }));
+    res.end(
+      JSON.stringify({
+        status: "error",
+        message: "Postiz unavailable",
+        detail: error.message,
+        hint: "Postiz may still be starting (first boot ~60s after build). Check the Logs tab.",
+      }),
+    );
   });
   res.on("close", () => proxyReq.destroy());
   req.pipe(proxyReq);
@@ -959,7 +1418,10 @@ function proxyUpgrade(req, socket, head, overridePath) {
   const proxySocket = net.connect(POSTIZ_PORT, POSTIZ_HOST);
   proxySocket.on("connect", () => {
     const f = req.headers["x-forwarded-for"];
-    const clientIp = typeof f === "string" ? f.split(",")[0].trim() : req.socket.remoteAddress || "";
+    const clientIp =
+      typeof f === "string"
+        ? f.split(",")[0].trim()
+        : req.socket.remoteAddress || "";
     const headerLines = [];
     for (let i = 0; i < req.rawHeaders.length; i += 2) {
       const name = req.rawHeaders[i];
@@ -975,14 +1437,16 @@ function proxyUpgrade(req, socket, head, overridePath) {
       `X-Forwarded-For: ${clientIp}`,
       `X-Forwarded-Host: ${req.headers.host || ""}`,
       `X-Forwarded-Proto: ${req.headers["x-forwarded-proto"] || "https"}`,
-      "", "",
+      "",
+      "",
     ];
     proxySocket.write(lines.join("\r\n"));
     if (head && head.length > 0) proxySocket.write(head);
     socket.pipe(proxySocket).pipe(socket);
   });
   proxySocket.on("error", () => {
-    if (socket.writable) socket.write("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
+    if (socket.writable)
+      socket.write("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
     socket.destroy();
   });
   socket.on("error", () => proxySocket.destroy());
@@ -1000,10 +1464,15 @@ const server = http.createServer((req, res) => {
   // ── /health ──────────────────────────────────────────────────────────────
   if (pathname === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      status: "ok", uptime, uptimeHuman: formatUptime(uptime),
-      timestamp: new Date().toISOString(), sync: readSyncStatus(),
-    }));
+    res.end(
+      JSON.stringify({
+        status: "ok",
+        uptime,
+        uptimeHuman: formatUptime(uptime),
+        timestamp: new Date().toISOString(),
+        sync: readSyncStatus(),
+      }),
+    );
     return;
   }
 
@@ -1012,12 +1481,14 @@ const server = http.createServer((req, res) => {
     void (async () => {
       const postiz = await checkPostizHealth();
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        uptime: formatUptime(uptime),
-        postizRunning: postiz.status === "running",
-        sync: readSyncStatus(),
-        keepalive: getKeepaliveStatus(),
-      }));
+      res.end(
+        JSON.stringify({
+          uptime: formatUptime(uptime),
+          postizRunning: postiz.status === "running",
+          sync: readSyncStatus(),
+          keepalive: getKeepaliveStatus(),
+        }),
+      );
     })();
     return;
   }
@@ -1032,13 +1503,13 @@ const server = http.createServer((req, res) => {
   // ── /app/debug-logs — Temporary endpoint for debugging ───────────────────
   if (pathname === "/app/debug-logs") {
     try {
-      const errLog = fs.existsSync("/root/.pm2/logs/backend-error.log") 
-        ? fs.readFileSync("/root/.pm2/logs/backend-error.log", "utf8") 
+      const errLog = fs.existsSync("/root/.pm2/logs/backend-error.log")
+        ? fs.readFileSync("/root/.pm2/logs/backend-error.log", "utf8")
         : "No backend-error.log found";
       const outLog = fs.existsSync("/root/.pm2/logs/backend-out.log")
         ? fs.readFileSync("/root/.pm2/logs/backend-out.log", "utf8")
         : "No backend-out.log found";
-      
+
       const cfProxyLog = fs.existsSync("/tmp/huggingpost-cloudflare-proxy.env")
         ? fs.readFileSync("/tmp/huggingpost-cloudflare-proxy.env", "utf8")
         : "No proxy env";
@@ -1069,11 +1540,13 @@ const server = http.createServer((req, res) => {
 
   // ── /app, /app/ and /app/* → proxy to nginx (Next.js handles routing) ────
   if (pathname === "/app" || pathname === "/app/") {
-    // Postiz Next.js root redirect to /launches sometimes fails with basePath 
+    // Postiz Next.js root redirect to /launches sometimes fails with basePath
     // + trailingSlash:true, leaving users on a blank /app/ page after signup.
     // Force the redirect here. Next.js middleware will still redirect to
     // /auth/login if they aren't authenticated yet.
-    res.writeHead(302, { Location: "/app/launches/" + (parsedUrl.search || "") });
+    res.writeHead(302, {
+      Location: "/app/launches/" + (parsedUrl.search || ""),
+    });
     res.end();
     return;
   }
@@ -1116,7 +1589,9 @@ const server = http.createServer((req, res) => {
   // basePath. Catch /_next/* and /static/* at root and 301 to /app/* so the
   // browser learns the right prefix.
   if (pathname.startsWith("/_next/") || pathname.startsWith("/static/")) {
-    res.writeHead(301, { Location: "/app" + pathname + (parsedUrl.search || "") });
+    res.writeHead(301, {
+      Location: "/app" + pathname + (parsedUrl.search || ""),
+    });
     res.end();
     return;
   }
@@ -1125,14 +1600,19 @@ const server = http.createServer((req, res) => {
   // After login, Postiz's client-side router may navigate to a path without
   // the /app basePath prefix (e.g. /launches, /analytics, /api/...).
   // Redirect those here rather than 404-ing so the browser lands correctly.
-  res.writeHead(302, { Location: "/app" + pathname + (parsedUrl.search || "") });
+  res.writeHead(302, {
+    Location: "/app" + pathname + (parsedUrl.search || ""),
+  });
   res.end();
 });
 
 server.on("upgrade", (req, socket, head) => {
   const parsedUrl = parseRequestUrl(req.url || "/");
   const pathname = parsedUrl.pathname;
-  if (isLocalRoute(pathname)) { socket.destroy(); return; }
+  if (isLocalRoute(pathname)) {
+    socket.destroy();
+    return;
+  }
   if (pathname === "/app" || pathname.startsWith("/app/")) {
     const stripped = pathname.slice("/app".length) || "/";
     proxyUpgrade(req, socket, head, stripped + (parsedUrl.search || ""));
@@ -1144,5 +1624,7 @@ server.on("upgrade", (req, socket, head) => {
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`✓ Health server listening on port ${PORT}`);
   console.log(`✓ Dashboard : http://localhost:${PORT}/`);
-  console.log(`✓ Postiz    : http://localhost:${PORT}/app/  → nginx :${POSTIZ_PORT}`);
+  console.log(
+    `✓ Postiz    : http://localhost:${PORT}/app/  → nginx :${POSTIZ_PORT}`,
+  );
 });
