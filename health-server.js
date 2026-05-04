@@ -1530,6 +1530,7 @@ const server = http.createServer((req, res) => {
       const postiz = await checkPostizHealth();
       const initialData = {
         postizRunning: postiz.status === "running",
+        keepalive: getKeepaliveStatus(),
         sync: readSyncStatus(),
       };
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
