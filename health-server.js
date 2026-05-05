@@ -1294,7 +1294,7 @@ function renderDashboard(data) {
       </div>
     </div>
 
-    <footer><span class="live">Live</span> status - Health endpoint: <code>/health</code></footer>
+    <footer>Built by <a href="https://github.com/somratpro" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: none;">@somratpro</a></footer>
   </main>
   <script>
     async function refresh() {
