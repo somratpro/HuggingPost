@@ -1868,6 +1868,51 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── /app/test-request-token — Test generateAuthLink via CF proxy ─────────
+  if (pathname === "/app/test-request-token" || pathname === "/app/test-request-token/") {
+    (async () => {
+      const lines = ["=== TEST: generateAuthLink via CF proxy ===", ""];
+      try {
+        const apiKey    = process.env.X_API_KEY    || "";
+        const apiSecret = process.env.X_API_SECRET || "";
+        lines.push(`X_API_KEY    : ${apiKey.slice(0,6)}... (len=${apiKey.length})`);
+        lines.push(`X_API_SECRET : ${apiSecret.slice(0,6)}... (len=${apiSecret.length})`);
+        lines.push(`CLOUDFLARE_PROXY_URL : ${process.env.CLOUDFLARE_PROXY_URL || "(not set)"}`);
+        lines.push(`NODE_OPTIONS : ${process.env.NODE_OPTIONS || "(not set)"}`);
+        lines.push("");
+
+        // Require twitter-api-v2 from Postiz's node_modules
+        const { TwitterApi } = require("/app/node_modules/twitter-api-v2");
+        const callbackUrl = (process.env.FRONTEND_URL || "https://somratpro-huggingpost.hf.space") + "/integrations/social/x";
+        lines.push(`callbackUrl : ${callbackUrl}`);
+        lines.push("Calling generateAuthLink...");
+
+        const client = new TwitterApi({ appKey: apiKey, appSecret: apiSecret });
+        const result = await client.generateAuthLink(callbackUrl, { authAccessType: "write", linkMode: "authenticate", forceLogin: false });
+
+        lines.push("");
+        lines.push(`oauth_token        : ${result.oauth_token ? result.oauth_token.slice(0,20) + "... (len=" + result.oauth_token.length + ")" : "(EMPTY!)"}`);
+        lines.push(`oauth_token_secret : ${result.oauth_token_secret ? result.oauth_token_secret.slice(0,10) + "... (len=" + result.oauth_token_secret.length + ")" : "(EMPTY!)"}`);
+        lines.push(`url                : ${result.url ? result.url.slice(0,80) : "(EMPTY!)"}`);
+        lines.push("");
+        lines.push("codeVerifier = oauth_token + ':' + oauth_token_secret:");
+        const cv = result.oauth_token + ":" + result.oauth_token_secret;
+        lines.push(`  "${cv.slice(0,40)}..." (len=${cv.length})`);
+        if (!result.oauth_token_secret) {
+          lines.push("  ⚠ EMPTY SECRET — CF proxy or X returning malformed request_token response!");
+        } else {
+          lines.push("  ✓ secret present");
+        }
+      } catch (e) {
+        lines.push(`ERROR: ${e.message}`);
+        lines.push(e.stack || "");
+      }
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end(lines.join("\n"));
+    })();
+    return;
+  }
+
   // ── /app/read-x-provider — Show x.provider.ts source from container ─────
   if (pathname === "/app/read-x-provider") {
     try {
