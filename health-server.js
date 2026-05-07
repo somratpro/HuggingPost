@@ -1956,15 +1956,27 @@ const server = http.createServer((req, res) => {
           if (!keys || keys.startsWith("(")) return `  ${pattern}: (none)\n`;
           let out = `  ${pattern} keys found:\n`;
           for (const key of keys.split("\n").filter(Boolean).slice(0, 5)) {
-            const val = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} get "${key}" 2>/dev/null`);
-            const ttl = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} ttl "${key}" 2>/dev/null`);
-            if (!val) { out += `    ${key}: EMPTY! [TTL=${ttl}]\n`; continue; }
+            const type = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} type "${key}"`);
+            const ttl  = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} ttl "${key}" 2>/dev/null`);
+            let val;
+            if (type === "hash") {
+              val = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} hgetall "${key}" 2>/dev/null`);
+            } else if (type === "string") {
+              val = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} get "${key}" 2>/dev/null`);
+            } else {
+              out += `    ${key} [type=${type} TTL=${ttl}]: (unhandled type)\n`; continue;
+            }
+            if (!val) { out += `    ${key} [type=${type} TTL=${ttl}]: VALUE IS EMPTY STRING\n`; continue; }
+            if (type === "hash") {
+              out += `    ${key} [type=hash TTL=${ttl}]:\n      ${val.replace(/\n/g, "\n      ").slice(0,300)}\n`;
+              continue;
+            }
             const colonIdx = val.indexOf(":");
             const token  = colonIdx > 0 ? val.slice(0, colonIdx) : "";
             const secret = colonIdx > 0 ? val.slice(colonIdx + 1) : "";
             const extraColons = (val.match(/:/g) || []).length - 1;
             const note = colonIdx < 0 ? "⚠ NO COLON" : extraColons > 0 ? `⚠ ${extraColons} extra colon(s)` : secret.length < 30 ? "⚠ secret short" : "✓ ok";
-            out += `    ${key} [TTL=${ttl}s]\n      token: ${token.slice(0,12)}... (len=${token.length})\n      secret: ${secret.slice(0,12)}... (len=${secret.length})\n      note: ${note}\n`;
+            out += `    ${key} [type=string TTL=${ttl}s]\n      token: ${token.slice(0,12)}... (len=${token.length})\n      secret: ${secret.slice(0,12)}... (len=${secret.length})\n      note: ${note}\n`;
           }
           return out;
         };
