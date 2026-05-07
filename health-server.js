@@ -288,24 +288,16 @@ function getOAuthPlatformDetails(publicUrl) {
           body: 'Go to <a href="https://developer.twitter.com" target="_blank" rel="noopener">developer.twitter.com</a>. Apply for a developer account if needed. Create a new project + app.',
         },
         {
-          title: "Set permissions to Read and write",
-          body: "On your app page → <strong>User authentication settings → Set up</strong>. Under <strong>App permissions</strong>, select <strong>Read and write</strong>.",
+          title: "Configure User Authentication Settings",
+          body: "On your app page → <strong>User authentication settings → Set up</strong>. Set ALL THREE of these, then click Save:<br><br><strong>1. App permissions:</strong> <strong>Read and write</strong> (default is Read-only — must change this)<br><strong>2. Type of App:</strong> <strong>Native App</strong> (Public client) — ⚠️ NOT Web App, Web App causes error code 32<br><strong>3. Callback URI:</strong> paste the Callback URL shown below. Website URL = your HF Space URL.<br><br>Save when done.",
         },
         {
-          title: "Set Type of App to Native App",
-          body: "<strong>⚠️ Critical:</strong> Under <strong>Type of App</strong>, select <strong>Native App</strong> (Public client). Do <em>not</em> select Web App — Web App causes OAuth error code 32 and authentication will fail.",
+          title: "Regenerate Consumer Keys (required after saving settings)",
+          body: "Go to <strong>Keys &amp; Tokens</strong> tab → <strong>OAuth 1.0 Keys</strong> section → click <strong>Regenerate</strong> next to Consumer Key.<br><br><strong>⚠️ You must regenerate after changing User Auth Settings</strong> — existing keys don't pick up new permissions.<br><br>The Regenerate popup shows BOTH values together — copy them immediately:<br>• <strong>API Key</strong> = your <strong>X_API_KEY</strong><br>• <strong>API Key Secret</strong> = your <strong>X_API_SECRET</strong><br><br>⚠️ Do NOT use Bearer Token, Access Token/Secret, or OAuth 2.0 Client ID/Secret.",
         },
         {
-          title: "Add callback URL and website URL",
-          body: "Under <strong>Callback URI / Redirect URL</strong>, paste the Callback URL shown below. Also set Website URL to your HF Space URL.",
-        },
-        {
-          title: "Copy Consumer Key and Consumer Secret",
-          body: "Go to your app → <strong>Keys &amp; Tokens</strong> tab → <strong>OAuth 1.0 Keys</strong> section.<br><br><strong>X_API_KEY</strong> = Consumer Key (click Show)<br><strong>X_API_SECRET</strong> = Consumer Secret — click <strong>Regenerate</strong> to reveal both together (the secret is only shown in the Regenerate popup).<br><br>⚠️ Do <em>not</em> use Bearer Token, Access Token, or OAuth 2.0 Client ID/Secret.",
-        },
-        {
-          title: "Add to Space secrets",
-          body: "Add both env vars below to your HF Space settings → Variables &amp; Secrets, then restart the Space.",
+          title: "Add to Space secrets and restart",
+          body: "Add <strong>X_API_KEY</strong> and <strong>X_API_SECRET</strong> to HF Space → Settings → Variables &amp; Secrets. Then <strong>Restart the Space</strong> to load the new values.",
         },
       ],
     },
