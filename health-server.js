@@ -1775,6 +1775,35 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── /app/redeploy-cf-worker — force Cloudflare Worker redeploy ───────────
+  // Strips CLOUDFLARE_PROXY_URL from subprocess env so the setup script
+  // bypasses the short-circuit and deploys the updated Worker template.
+  if (pathname === "/app/redeploy-cf-worker") {
+    const { execFile } = require("child_process");
+    const subEnv = { ...process.env };
+    delete subEnv.CLOUDFLARE_PROXY_URL;
+    delete subEnv.CLOUDFLARE_PROXY_SECRET;
+    execFile("python3", ["/opt/postiz-sync.py", "--version"], { env: subEnv }, () => {}); // no-op warm-up
+    execFile("python3", ["/opt/cloudflare-proxy-setup.py"], { env: subEnv, timeout: 60000 },
+      (err, stdout, stderr) => {
+        const lines = [
+          "Redeploying Cloudflare Worker with updated template...",
+          "",
+          "=== stdout ===",
+          stdout || "(empty)",
+          "=== stderr ===",
+          stderr || "(empty)",
+          err ? "=== exec error ===\n" + err.message : "=== done ===",
+          "",
+          "Worker updated. Try connecting X now.",
+        ];
+        res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end(lines.join("\n"));
+      }
+    );
+    return;
+  }
+
   // ── /app/test-twitter — raw connectivity probe to api.twitter.com ────────
   if (pathname === "/app/test-twitter") {
     const https = require("https");

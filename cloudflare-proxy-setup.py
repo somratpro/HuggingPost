@@ -147,19 +147,36 @@ async function handleRequest(request) {{
   headers.delete("x-target-host");
   headers.delete("x-proxy-key");
 
-  // Use redirect:"manual" so POST bodies are NOT silently dropped when X
-  // returns a 3xx (fetch spec converts POST→GET on 301/302 redirect, losing
-  // the OAuth-signed body and causing a signature mismatch → 500 from X).
-  // The Node.js client receives the raw 3xx and handles it with body intact.
-  const proxiedRequest = new Request(targetUrl, {{
+  // Buffer the entire request body so we can replay it on redirects.
+  // X redirects api.twitter.com/oauth/access_token → api.x.com with a 3xx.
+  // The default redirect:"follow" converts POST→GET (loses OAuth body → 500).
+  // redirect:"manual" returns a 3xx the Node.js client can't handle.
+  // Solution: buffer body, intercept 3xx manually, re-POST with same body.
+  let bodyBuffer = null;
+  if (request.body) {{
+    try {{ bodyBuffer = await request.arrayBuffer(); }} catch(_) {{}}
+  }}
+
+  const makeReq = (url) => new Request(url, {{
     method: request.method,
     headers,
-    body: request.body,
+    body: bodyBuffer,
     redirect: "manual",
   }});
 
   try {{
-    return await fetch(proxiedRequest);
+    let response = await fetch(makeReq(targetUrl));
+    let hops = 0;
+    // Follow 3xx redirects preserving method + body (max 5 hops).
+    while (hops < 5 && (response.status === 301 || response.status === 302 ||
+                         response.status === 307 || response.status === 308)) {{
+      const location = response.headers.get("location");
+      if (!location) break;
+      hops++;
+      const next = new URL(location, targetUrl).toString();
+      response = await fetch(makeReq(next));
+    }}
+    return response;
   }} catch (error) {{
     return new Response(`Proxy Error: ${{error.message}}`, {{ status: 502 }});
   }}
