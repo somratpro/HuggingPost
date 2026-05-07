@@ -1786,18 +1786,69 @@ const server = http.createServer((req, res) => {
   // ── /app/debug-logs — Temporary endpoint for debugging ───────────────────
   if (pathname === "/app/debug-logs") {
     try {
-      const errLog = fs.existsSync("/root/.pm2/logs/backend-error.log")
-        ? fs.readFileSync("/root/.pm2/logs/backend-error.log", "utf8")
-        : "No backend-error.log found";
-      const outLog = fs.existsSync("/root/.pm2/logs/backend-out.log")
-        ? fs.readFileSync("/root/.pm2/logs/backend-out.log", "utf8")
-        : "No backend-out.log found";
+      // tail helper — last N lines of a file
+      const tailLines = (path, n) => {
+        if (!fs.existsSync(path)) return `(no file: ${path})`;
+        const lines = fs.readFileSync(path, "utf8").split("\n");
+        return lines.slice(-n).join("\n");
+      };
+
+      const errLog = tailLines("/root/.pm2/logs/backend-error.log", 150);
+      const outLog = tailLines("/root/.pm2/logs/backend-out.log", 80);
+
+      // masked credential diagnostics — first 6 chars + length
+      const maskCred = (val) => {
+        if (!val) return "(not set)";
+        const clean = val.trim();
+        if (clean.length === 0) return "(empty)";
+        return `${clean.slice(0, 6)}... (len=${clean.length})`;
+      };
+      const xKey    = maskCred(process.env.X_API_KEY);
+      const xSecret = maskCred(process.env.X_API_SECRET);
+      const frontendUrl = process.env.FRONTEND_URL || "(not set)";
+
+      // Heuristic: X Consumer Key is ~25 alphanum, Consumer Secret ~50 alphanum.
+      // OAuth 2.0 Client ID is base64url and usually longer (36+).
+      const xKeyNote = (() => {
+        const v = (process.env.X_API_KEY || "").trim();
+        if (!v) return "MISSING";
+        if (v.length > 35) return "⚠ LOOKS LIKE OAuth2 CLIENT ID (too long) — should be ~25 chars";
+        if (v.includes("=") || v.includes(":")) return "⚠ LOOKS WRONG (contains = or :)";
+        return "✓ length ok";
+      })();
+      const xSecretNote = (() => {
+        const v = (process.env.X_API_SECRET || "").trim();
+        if (!v) return "MISSING";
+        if (v.length < 40) return "⚠ TOO SHORT — Consumer Secret is ~50 chars";
+        if (v.length > 70) return "⚠ TOO LONG — might be OAuth2 Client Secret or Access Token Secret";
+        if (v.includes("=")) return "⚠ CONTAINS = — might be base64 encoded (wrong key type)";
+        return "✓ length ok";
+      })();
+
+      const credSection = [
+        "=== X CREDENTIAL CHECK ===",
+        `X_API_KEY    : ${xKey}  [${xKeyNote}]`,
+        `X_API_SECRET : ${xSecret}  [${xSecretNote}]`,
+        `FRONTEND_URL : ${frontendUrl}`,
+        `Expected callback URL: ${frontendUrl}/integrations/social/x`,
+      ].join("\n");
 
       const cfProxyLog = fs.existsSync("/tmp/huggingpost-cloudflare-proxy.env")
         ? fs.readFileSync("/tmp/huggingpost-cloudflare-proxy.env", "utf8")
         : "No proxy env";
 
-      const out = `=== BACKEND ERROR LOG ===\n${errLog}\n\n=== BACKEND OUT LOG ===\n${outLog}\n\n=== PROXY ENV ===\n${cfProxyLog}`;
+      const out = [
+        credSection,
+        "",
+        "=== BACKEND ERROR LOG (last 150 lines) ===",
+        errLog,
+        "",
+        "=== BACKEND OUT LOG (last 80 lines) ===",
+        outLog,
+        "",
+        "=== PROXY ENV ===",
+        cfProxyLog,
+      ].join("\n");
       res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
       res.end(out);
     } catch (e) {
