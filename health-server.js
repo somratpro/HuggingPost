@@ -1826,8 +1826,20 @@ const server = http.createServer((req, res) => {
       ].join("\n");
 
       const cfProxyLog = fs.existsSync("/tmp/huggingpost-cloudflare-proxy.env")
-        ? fs.readFileSync("/tmp/huggingpost-cloudflare-proxy.env", "utf8")
-        : "No proxy env";
+        ? fs.readFileSync("/tmp/huggingpost-cloudflare-proxy.env", "utf8").replace(/(SECRET|TOKEN)=\S+/gi, "$1=(redacted)")
+        : "(file not found — proxy not deployed; CLOUDFLARE_WORKERS_TOKEN not set?)";
+
+      const cfProxySection = [
+        "=== CLOUDFLARE PROXY STATUS ===",
+        `CLOUDFLARE_WORKERS_TOKEN : ${process.env.CLOUDFLARE_WORKERS_TOKEN ? "✓ set (len=" + process.env.CLOUDFLARE_WORKERS_TOKEN.length + ")" : "✗ NOT SET — proxy never deployed, X traffic goes direct"}`,
+        `CLOUDFLARE_PROXY_URL     : ${process.env.CLOUDFLARE_PROXY_URL ? maskCred(process.env.CLOUDFLARE_PROXY_URL) : "✗ NOT SET — api.twitter.com calls NOT proxied"}`,
+        `CLOUDFLARE_PROXY_DEBUG   : ${process.env.CLOUDFLARE_PROXY_DEBUG || "(not set)"}`,
+        `NODE_OPTIONS             : ${process.env.NODE_OPTIONS || "(not set — cloudflare-proxy.js NOT loaded in backend!)"}`,
+        `/opt/cloudflare-proxy.js : ${fs.existsSync("/opt/cloudflare-proxy.js") ? "✓ exists" : "✗ MISSING"}`,
+        `/tmp/huggingpost-cloudflare-proxy.env contents:`,
+        cfProxyLog,
+        `cf-proxy-banner-shown    : ${fs.existsSync("/tmp/.cf-proxy-banner-shown") ? "✓ (proxy init ran at least once)" : "(not found)"}`,
+      ].join("\n");
 
       const xCallbackLog = fs.existsSync("/tmp/x-oauth-callbacks.log")
         ? fs.readFileSync("/tmp/x-oauth-callbacks.log", "utf8")
@@ -1835,6 +1847,8 @@ const server = http.createServer((req, res) => {
 
       const out = [
         credSection,
+        "",
+        cfProxySection,
         "",
         "=== X OAUTH CALLBACKS (from health-server) ===",
         xCallbackLog,
@@ -1844,9 +1858,6 @@ const server = http.createServer((req, res) => {
         "",
         "=== BACKEND OUT LOG (last 80 lines) ===",
         outLog,
-        "",
-        "=== PROXY ENV ===",
-        cfProxyLog,
       ].join("\n");
       res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
       res.end(out);
