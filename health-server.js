@@ -1829,8 +1829,15 @@ const server = http.createServer((req, res) => {
         ? fs.readFileSync("/tmp/huggingpost-cloudflare-proxy.env", "utf8")
         : "No proxy env";
 
+      const xCallbackLog = fs.existsSync("/tmp/x-oauth-callbacks.log")
+        ? fs.readFileSync("/tmp/x-oauth-callbacks.log", "utf8")
+        : "(no X callbacks recorded yet — try adding X channel now)";
+
       const out = [
         credSection,
+        "",
+        "=== X OAUTH CALLBACKS (from health-server) ===",
+        xCallbackLog,
         "",
         "=== BACKEND ERROR LOG (last 150 lines) ===",
         errLog,
@@ -1927,6 +1934,23 @@ const server = http.createServer((req, res) => {
   // After login, Postiz's client-side router may navigate to a path without
   // the /app basePath prefix (e.g. /launches, /analytics, /api/...).
   // Redirect those here rather than 404-ing so the browser lands correctly.
+
+  // Log OAuth callbacks for debugging.
+  if (pathname === "/integrations/social/x") {
+    const oauthToken    = parsedUrl.searchParams.get("oauth_token")    || "(missing)";
+    const oauthVerifier = parsedUrl.searchParams.get("oauth_verifier") || "(MISSING!)";
+    const denied        = parsedUrl.searchParams.get("denied");
+    const ts = new Date().toISOString();
+    const msg = denied
+      ? `[${ts}] X OAuth DENIED — denied=${denied}`
+      : `[${ts}] X OAuth callback — oauth_token=${oauthToken.slice(0,20)}... oauth_verifier=${oauthVerifier === "(MISSING!)" ? "(MISSING! — X did not send verifier)" : oauthVerifier.slice(0,10) + "... (present ✓)"}`;
+    console.log(msg);
+    // Append to a file the debug-logs endpoint can read.
+    try {
+      fs.appendFileSync("/tmp/x-oauth-callbacks.log", msg + "\n");
+    } catch(_) {}
+  }
+
   res.writeHead(302, {
     Location: "/app" + pathname + (parsedUrl.search || ""),
   });
