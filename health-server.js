@@ -2020,6 +2020,27 @@ const server = http.createServer((req, res) => {
         redisSection += `(redis-cli error: ${e.message})`;
       }
 
+      // Grep Postiz source for Redis key patterns + x.provider content
+      let sourceSection = "=== POSTIZ SOURCE: Redis key patterns ===\n";
+      try {
+        const { execSync } = require("child_process");
+        const rc2 = (cmd) => { try { return execSync(cmd, { timeout: 10000 }).toString().trim(); } catch(e) { return "(err: " + e.message.slice(0,80) + ")"; } };
+        const grepRedis = rc2("grep -rn 'ioRedis.set\\|redis.set' /app/apps/backend/src /app/libs --include='*.ts' 2>/dev/null | grep -v node_modules | grep -E 'login:|external:|refresh:' | head -20");
+        sourceSection += `Redis set calls with login:/external: prefix:\n${grepRedis || "(none found)"}\n\n`;
+        // Find and show x.provider.ts generateAuthUrl
+        const xProvFile = rc2("find /app -name 'x.provider.ts' -not -path '*/node_modules/*' -not -path '*/.next/*' 2>/dev/null | head -1");
+        sourceSection += `x.provider.ts path: ${xProvFile || "(not found)"}\n`;
+        if (xProvFile && !xProvFile.startsWith("(err")) {
+          const xContent = rc2(`grep -n 'generateAuthUrl\\|codeVerifier\\|oauth_token\\|ioRedis\\|redis' "${xProvFile}" | head -40`);
+          sourceSection += `x.provider.ts relevant lines:\n${xContent || "(none)"}\n`;
+        }
+        // Also check integrations controller
+        const ctrlSearch = rc2("grep -rn 'external:\\|login:\\|codeVerifier\\|generateAuthUrl' /app/apps/backend/src --include='*.ts' 2>/dev/null | grep -v node_modules | head -30");
+        sourceSection += `\nIntegrations controller Redis/codeVerifier usage:\n${ctrlSearch || "(none)"}\n`;
+      } catch(e) {
+        sourceSection += `(error: ${e.message})`;
+      }
+
       const out = [
         credSection,
         "",
@@ -2029,6 +2050,8 @@ const server = http.createServer((req, res) => {
         xCallbackLog,
         "",
         redisSection,
+        "",
+        sourceSection,
         "",
         "=== BACKEND ERROR LOG (last 150 lines) ===",
         errLog,
