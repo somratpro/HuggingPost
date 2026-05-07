@@ -285,19 +285,23 @@ function getOAuthPlatformDetails(publicUrl) {
       steps: [
         {
           title: "Create an X Developer App",
-          body: 'Apply for a developer account at <a href="https://developer.twitter.com" target="_blank" rel="noopener" style="color:#f472b6">developer.twitter.com</a> if you don\'t have one. Create a new project + app.',
+          body: 'Go to <a href="https://developer.twitter.com" target="_blank" rel="noopener">developer.twitter.com</a>. Apply for a developer account if needed. Create a new project + app.',
         },
         {
-          title: "Enable OAuth 1.0a + set permissions",
-          body: "On your app page → <strong>User authentication settings → Set up</strong>. Enable <strong>OAuth 1.0a</strong>. Set App permissions to <strong>Read and Write</strong>. Set Type of App to <strong>Native App</strong> (⚠️ must be Native App, not Web App — Web App breaks OAuth 1.0a).",
+          title: "Set permissions to Read and write",
+          body: "On your app page → <strong>User authentication settings → Set up</strong>. Under <strong>App permissions</strong>, select <strong>Read and write</strong>.",
         },
         {
-          title: "Add callback URL",
-          body: "In the same setup screen, under <strong>Callback URI / Redirect URL</strong>, paste the Callback URL shown below.",
+          title: "Set Type of App to Native App",
+          body: "<strong>⚠️ Critical:</strong> Under <strong>Type of App</strong>, select <strong>Native App</strong> (Public client). Do <em>not</em> select Web App — Web App causes OAuth error code 32 and authentication will fail.",
         },
         {
-          title: "Get your Consumer Secret",
-          body: "<strong>⚠️ The Consumer Secret (X_API_SECRET) is only shown once</strong> — right after app creation, or after you click <strong>Regenerate</strong> on the Consumer Key row in the Keys &amp; Tokens tab.<br><br>If you don't have it saved: go to <strong>Keys &amp; Tokens → OAuth 1.0 Keys → Regenerate</strong>. Copy <em>both</em> the new Consumer Key and Consumer Secret that appear in the popup.",
+          title: "Add callback URL and website URL",
+          body: "Under <strong>Callback URI / Redirect URL</strong>, paste the Callback URL shown below. Also set Website URL to your HF Space URL.",
+        },
+        {
+          title: "Copy Consumer Key and Consumer Secret",
+          body: "Go to your app → <strong>Keys &amp; Tokens</strong> tab → <strong>OAuth 1.0 Keys</strong> section.<br><br><strong>X_API_KEY</strong> = Consumer Key (click Show)<br><strong>X_API_SECRET</strong> = Consumer Secret — click <strong>Regenerate</strong> to reveal both together (the secret is only shown in the Regenerate popup).<br><br>⚠️ Do <em>not</em> use Bearer Token, Access Token, or OAuth 2.0 Client ID/Secret.",
         },
         {
           title: "Add to Space secrets",
@@ -708,7 +712,7 @@ function getOAuthPlatformDetails(publicUrl) {
 
 function renderSetupPage() {
   const spaceHost = process.env.SPACE_HOST || null;
-  const spaceId = process.env.SPACE_ID || null;
+  const spaceId   = process.env.SPACE_ID   || null;
   const publicUrl = spaceHost
     ? `https://${spaceHost}`
     : "http://localhost:7860";
@@ -722,180 +726,456 @@ function renderSetupPage() {
   ).length;
 
   // Build sidebar items
-  const sidebarItems = platforms
-    .map((p, i) => {
-      const allSet = p.envVars.every((v) => v.set);
-      const anySet = p.envVars.some((v) => v.set);
-      const indicator = allSet ? "✅" : anySet ? "⚠️" : "⚪";
-      return `<button class="plat-tab${i === 0 ? " active" : ""}" onclick="show(${i})" id="tab-${i}">
+  const sidebarItems = platforms.map((p, i) => {
+    const allSet = p.envVars.every((v) => v.set);
+    const anySet = p.envVars.some((v) => v.set);
+    const dot = allSet
+      ? `<span class="dot dot-ok"></span>`
+      : anySet
+        ? `<span class="dot dot-warn"></span>`
+        : `<span class="dot dot-off"></span>`;
+    return `<button class="plat-tab${i === 0 ? " active" : ""}" onclick="show(${i})" id="tab-${i}">
       <span class="tab-emoji">${p.emoji}</span>
       <span class="tab-name">${p.name}</span>
-      <span class="tab-indicator">${indicator}</span>
+      ${dot}
     </button>`;
-    })
-    .join("");
+  }).join("");
 
   // Build detail panels
-  const panels = platforms
-    .map((p, i) => {
-      const allSet = p.envVars.every((v) => v.set);
+  const panels = platforms.map((p, i) => {
+    const allSet = p.envVars.every((v) => v.set);
+    const anySet = p.envVars.some((v) => v.set);
 
-      const stepsList = p.steps
-        .map(
-          (s, si) =>
-            `<div class="step"><div class="step-num">${si + 1}</div><div><div class="step-title">${s.title}</div><div class="step-body">${s.body}</div></div></div>`,
-        )
-        .join("");
+    const stepsList = p.steps.map((s, si) =>
+      `<div class="step">
+        <div class="step-num">${si + 1}</div>
+        <div>
+          <div class="step-title">${s.title}</div>
+          <div class="step-body">${s.body}</div>
+        </div>
+      </div>`
+    ).join("");
 
-      const envRows = p.envVars
-        .map(
-          (v) =>
-            `<div class="env-row">
+    const envRows = p.envVars.map((v) =>
+      `<div class="env-row">
         <div class="env-info">
           <code class="env-name">${v.name}</code>
           <span class="env-desc">${v.desc}</span>
         </div>
         <div class="env-actions">
-          ${v.set ? '<span class="badge badge-on" style="font-size:.7rem">Set ✓</span>' : '<span class="badge badge-off" style="font-size:.7rem">Not set</span>'}
-          <button class="copy-btn" onclick="copy('${v.name}', this)">Copy name</button>
+          ${v.set
+            ? `<span class="badge ok">SET</span>`
+            : `<span class="badge off">NOT SET</span>`}
+          <button class="btn-copy" onclick="copy('${v.name}',this)">Copy name</button>
         </div>
-      </div>`,
-        )
-        .join("");
+      </div>`
+    ).join("");
 
-      const statusBanner = allSet
-        ? `<div class="status-banner banner-ok">✅ All credentials configured — restart Space if you just added them.</div>`
-        : p.envVars.some((v) => v.set)
-          ? `<div class="status-banner banner-warn">⚠️ Partially configured — check missing env vars below.</div>`
-          : `<div class="status-banner banner-info">ℹ️ Not yet configured — follow the steps below.</div>`;
+    const banner = allSet
+      ? `<div class="banner banner-ok">All credentials configured — restart Space if you just added them.</div>`
+      : anySet
+        ? `<div class="banner banner-warn">Partially configured — add the missing env vars below.</div>`
+        : `<div class="banner banner-info">Not yet configured — follow the steps below.</div>`;
 
-      return `<div class="panel${i === 0 ? " active" : ""}" id="panel-${i}">
-      <div class="panel-header">
+    return `<div class="panel${i === 0 ? " active" : ""}" id="panel-${i}">
+      <div class="panel-head">
         <span class="panel-emoji">${p.emoji}</span>
         <div>
-          <h2 class="panel-title">${p.name}</h2>
-          <a class="portal-link" href="${p.setupUrl}" target="_blank" rel="noopener">Open ${p.name} Developer Portal →</a>
-          ${p.docsUrl ? `<a class="portal-link" href="${p.docsUrl}" target="_blank" rel="noopener" style="margin-left:12px">Docs →</a>` : ""}
+          <div class="panel-title">${p.name}</div>
+          <div class="panel-links">
+            <a href="${p.setupUrl}" target="_blank" rel="noopener">Open Developer Portal →</a>
+            ${p.docsUrl ? `<a href="${p.docsUrl}" target="_blank" rel="noopener">Official Docs →</a>` : ""}
+          </div>
         </div>
       </div>
 
-      ${statusBanner}
+      ${banner}
 
-      <h3 class="section-label">Setup Steps</h3>
+      <div class="section-label">Setup Steps</div>
       <div class="steps-list">${stepsList}</div>
 
-      <h3 class="section-label">Callback URL</h3>
+      <div class="section-label">Callback URL
+        <span class="section-hint">Paste this in the developer portal when asked for "Redirect URI" or "Callback URL"</span>
+      </div>
       <div class="copy-block">
-        <span class="copy-block-text" id="cb-${i}">${p.callbackUrl}</span>
-        <button class="copy-btn copy-btn-primary" onclick="copy('${p.callbackUrl}', this)">Copy</button>
+        <span class="copy-block-text">${p.callbackUrl}</span>
+        <button class="btn-copy btn-copy-accent" onclick="copy('${p.callbackUrl}',this)">Copy</button>
       </div>
-      <p class="hint">Paste this URL wherever the developer portal asks for "Redirect URI", "Callback URL", or "OAuth Redirect URL".</p>
 
-      <h3 class="section-label">Space Secrets to Add</h3>
-      <div class="env-list">${envRows}</div>
-      <div class="settings-cta">
-        <a href="${settingsUrl}" target="_blank" rel="noopener" class="settings-btn">Open Space Settings → Variables &amp; Secrets</a>
-        <p class="hint">After adding secrets, click <strong>Restart Space</strong> for them to take effect.</p>
+      <div class="section-label">Space Secrets to Add
+        <span class="section-hint">HF Space → Settings → Variables &amp; Secrets</span>
       </div>
+      <div class="env-list">${envRows}</div>
+
+      <a href="${settingsUrl}" target="_blank" rel="noopener" class="settings-btn">
+        Open Space Settings → Variables &amp; Secrets
+      </a>
+      <p class="hint-final">After adding all secrets, click <strong>Restart Space</strong> for them to take effect.</p>
     </div>`;
-    })
-    .join("");
+  }).join("");
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Platform Setup — HuggingPost</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0f172a;--sidebar:#0d1829;--card:rgba(30,41,59,.75);--border:rgba(255,255,255,.08);--accent:linear-gradient(135deg,#ec4899,#8b5cf6);--text:#f8fafc;--dim:#94a3b8;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;--blue:#3b82f6;--pink:#f472b6}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;
-  background-image:radial-gradient(at 0% 0%,rgba(236,72,153,.12) 0,transparent 50%),radial-gradient(at 100% 100%,rgba(139,92,246,.12) 0,transparent 50%)}
-/* Top bar */
-.topbar{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border);background:rgba(15,23,42,.8);backdrop-filter:blur(8px);flex-shrink:0}
-.topbar a{color:var(--dim);text-decoration:none;font-size:.85rem;display:flex;align-items:center;gap:6px}
-.topbar a:hover{color:var(--text)}
-.topbar h1{font-size:1.1rem;font-weight:600;background:var(--accent);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.topbar-right{margin-left:auto;font-size:.8rem;color:var(--dim)}
-/* Layout */
-.layout{display:flex;flex:1;overflow:hidden}
-/* Sidebar */
-.sidebar{width:220px;flex-shrink:0;background:var(--sidebar);border-right:1px solid var(--border);overflow-y:auto;padding:12px 8px}
-.sidebar-label{font-size:.65rem;text-transform:uppercase;color:var(--dim);letter-spacing:.1em;padding:4px 10px 8px}
-.plat-tab{width:100%;background:none;border:none;color:var(--text);font:inherit;font-size:.88rem;display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:10px;cursor:pointer;text-align:left;transition:background .15s}
-.plat-tab:hover{background:rgba(255,255,255,.05)}
-.plat-tab.active{background:rgba(236,72,153,.12);color:var(--pink)}
-.tab-emoji{font-size:1rem;width:22px;text-align:center;flex-shrink:0}
-.tab-name{flex:1}
-.tab-indicator{font-size:.8rem}
-/* Main panel */
-.main{flex:1;overflow-y:auto;padding:28px 32px}
-.panel{display:none;animation:fadein .2s ease}
-.panel.active{display:block}
-@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.panel-header{display:flex;align-items:flex-start;gap:16px;margin-bottom:20px}
-.panel-emoji{font-size:2.5rem;flex-shrink:0;margin-top:2px}
-.panel-title{font-size:1.5rem;font-weight:600;margin-bottom:4px}
-.portal-link{color:var(--pink);font-size:.82rem;text-decoration:none}
-.portal-link:hover{text-decoration:underline}
-/* Status banner */
-.status-banner{padding:10px 14px;border-radius:10px;font-size:.85rem;margin-bottom:20px}
-.banner-ok{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);color:#6ee7b7}
-.banner-warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);color:#fcd34d}
-.banner-info{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:#93c5fd}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  color-scheme: dark;
+  --bg:     #08080f;
+  --panel:  #12111b;
+  --panel2: #151421;
+  --line:   #26243a;
+  --text:   #f6f4ff;
+  --muted:  #7f7a9e;
+  --soft:   #b8b3d7;
+  --good:   #22c55e;
+  --warn:   #f5c542;
+  --bad:    #fb7185;
+  --accent: #3b82f6;
+  --accent2:#8b5cf6;
+}
+body {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Top bar ─────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  height: 48px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  flex-shrink: 0;
+}
+.topbar-back {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color .15s;
+}
+.topbar-back:hover { color: var(--text); }
+.topbar-title {
+  font-size: .78rem;
+  font-weight: 850;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+.topbar-count {
+  margin-left: auto;
+  font-size: .72rem;
+  font-weight: 850;
+  color: var(--muted);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+/* ── Layout ──────────────────────────────────────────── */
+.layout { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Sidebar ─────────────────────────────────────────── */
+.sidebar {
+  width: 210px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar-label {
+  font-size: .62rem;
+  font-weight: 850;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 6px 10px 10px;
+}
+.plat-tab {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--soft);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background .12s, color .12s;
+  border: 1px solid transparent;
+}
+.plat-tab:hover { background: var(--panel2); color: var(--text); }
+.plat-tab.active {
+  background: var(--panel2);
+  color: var(--text);
+  border-color: var(--line);
+}
+.tab-emoji { font-size: .95rem; width: 20px; text-align: center; flex-shrink: 0; }
+.tab-name  { flex: 1; }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.dot-ok   { background: var(--good); }
+.dot-warn { background: var(--warn); }
+.dot-off  { background: var(--line); }
+
+/* ── Main panel ──────────────────────────────────────── */
+.main { flex: 1; overflow-y: auto; padding: 28px 32px; max-width: 780px; }
+.panel { display: none; animation: fadein .18s ease; }
+.panel.active { display: block; }
+@keyframes fadein { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.panel-emoji { font-size: 2.2rem; flex-shrink: 0; line-height: 1; }
+.panel-title { font-size: 1.4rem; font-weight: 850; margin-bottom: 6px; }
+.panel-links { display: flex; gap: 14px; flex-wrap: wrap; }
+.panel-links a {
+  color: var(--accent2);
+  font-size: .76rem;
+  font-weight: 700;
+  text-decoration: none;
+  letter-spacing: .02em;
+}
+.panel-links a:hover { text-decoration: underline; }
+
+/* Banner */
+.banner {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: .8rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+  border: 1px solid transparent;
+}
+.banner-ok   { background: rgba(34,197,94,.08);  border-color: rgba(34,197,94,.22);  color: #86efac; }
+.banner-warn { background: rgba(245,197,66,.08); border-color: rgba(245,197,66,.22); color: #fde68a; }
+.banner-info { background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.22); color: #93c5fd; }
+
 /* Section labels */
-.section-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin:20px 0 10px}
+.section-label {
+  font-size: .62rem;
+  font-weight: 850;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 22px 0 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.section-hint {
+  font-size: .7rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+  opacity: .7;
+}
+
 /* Steps */
-.steps-list{display:flex;flex-direction:column;gap:2px}
-.step{display:flex;gap:12px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--border)}
-.step-num{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
-.step-title{font-size:.88rem;font-weight:600;margin-bottom:3px}
-.step-body{font-size:.82rem;color:var(--dim);line-height:1.55}
-.step-body code{background:rgba(255,255,255,.1);padding:1px 5px;border-radius:4px;font-size:.8em;color:var(--text)}
-/* Callback URL copy block */
-.copy-block{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:6px}
-.copy-block-text{flex:1;font-size:.82rem;color:#c4b5fd;word-break:break-all;font-family:monospace}
-/* Env vars */
-.env-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
-.env-row{display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px}
-.env-info{flex:1;display:flex;flex-direction:column;gap:3px}
-.env-name{font-size:.82rem;color:#c4b5fd;background:rgba(139,92,246,.1);padding:2px 7px;border-radius:5px;width:fit-content}
-.env-desc{font-size:.76rem;color:var(--dim)}
-.env-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
-/* Buttons */
-.copy-btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);font:inherit;font-size:.75rem;padding:5px 10px;border-radius:7px;cursor:pointer;transition:background .15s;flex-shrink:0}
-.copy-btn:hover{background:rgba(255,255,255,.12)}
-.copy-btn.copied{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.3);color:var(--ok)}
-.copy-btn-primary{background:rgba(236,72,153,.15);border-color:rgba(236,72,153,.3);color:var(--pink);font-size:.82rem;padding:6px 14px}
-.copy-btn-primary:hover{background:rgba(236,72,153,.25)}
-.settings-btn{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;padding:11px 20px;border-radius:10px;font-size:.88rem;font-weight:600;transition:opacity .2s}
-.settings-btn:hover{opacity:.85}
-.settings-cta{margin-top:4px}
+.steps-list { display: flex; flex-direction: column; gap: 4px; }
+.step {
+  display: flex;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  font-size: .68rem;
+  font-weight: 850;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.step-title { font-size: .82rem; font-weight: 800; margin-bottom: 3px; color: var(--text); }
+.step-body  { font-size: .78rem; color: var(--soft); line-height: 1.6; }
+.step-body strong { color: var(--text); font-weight: 800; }
+.step-body code {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: .85em;
+  color: var(--text);
+}
+.step-body a { color: var(--accent2); text-decoration: none; }
+.step-body a:hover { text-decoration: underline; }
+
+/* Callback copy block */
+.copy-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 14px;
+}
+.copy-block-text {
+  flex: 1;
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
+  font-size: .78rem;
+  color: var(--accent2);
+  word-break: break-all;
+  opacity: .9;
+}
+
+/* Env var rows */
+.env-list { display: flex; flex-direction: column; gap: 5px; }
+.env-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.env-info { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.env-name {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: .78rem;
+  color: var(--accent2);
+  background: rgba(139,92,246,.12);
+  border: 1px solid rgba(139,92,246,.2);
+  padding: 2px 7px;
+  border-radius: 5px;
+  width: fit-content;
+}
+.env-desc { font-size: .72rem; color: var(--muted); }
+.env-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
 /* Badges */
-.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-weight:600}
-.badge-on{background:rgba(16,185,129,.12);color:var(--ok)}
-.badge-off{background:rgba(239,68,68,.12);color:var(--err)}
-/* Hint */
-.hint{font-size:.78rem;color:var(--dim);margin-top:6px;line-height:1.5;margin-bottom:16px}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: .66rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.badge.ok  { color: var(--good); border-color: rgba(34,197,94,.3);  background: rgba(34,197,94,.1);  }
+.badge.off { color: var(--bad);  border-color: rgba(251,113,133,.3); background: rgba(251,113,133,.1); }
+
+/* Buttons */
+.btn-copy {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  color: var(--soft);
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.btn-copy:hover { background: var(--line); color: var(--text); }
+.btn-copy.copied { background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.3); color: var(--good); }
+.btn-copy-accent {
+  background: rgba(59,130,246,.12);
+  border-color: rgba(59,130,246,.3);
+  color: #93c5fd;
+  font-size: .76rem;
+  padding: 6px 14px;
+}
+.btn-copy-accent:hover { background: rgba(59,130,246,.2); }
+
+/* Settings CTA */
+.settings-btn {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 16px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  text-decoration: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 850;
+  transition: opacity .15s;
+}
+.settings-btn:hover { opacity: .85; }
+.hint-final {
+  margin-top: 10px;
+  font-size: .74rem;
+  color: var(--muted);
+  line-height: 1.5;
+  padding-bottom: 32px;
+}
+.hint-final strong { color: var(--soft); }
+
 /* Mobile */
-@media(max-width:700px){
-  body{overflow:auto;height:auto}
-  .layout{flex-direction:column;overflow:visible}
-  .sidebar{width:100%;border-right:none;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;padding:8px;gap:4px}
-  .sidebar-label{display:none}
-  .plat-tab{width:auto;flex:0 0 auto;padding:6px 10px}
-  .tab-name{display:none}
-  .main{padding:16px}
+@media (max-width: 680px) {
+  body { overflow: auto; height: auto; }
+  .layout { flex-direction: column; overflow: visible; }
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    flex-direction: row;
+    flex-wrap: wrap;
+    overflow-x: auto;
+    padding: 8px;
+    gap: 4px;
+  }
+  .sidebar-label { display: none; }
+  .plat-tab { width: auto; flex: 0 0 auto; }
+  .tab-name { display: none; }
+  .main { padding: 16px; }
 }
 </style>
 </head>
 <body>
 <div class="topbar">
-  <a href="/">← Dashboard</a>
-  <h1>Platform Setup Guide</h1>
-  <span class="topbar-right">${configuredCount}/${platforms.length} configured</span>
+  <a class="topbar-back" href="/">← Dashboard</a>
+  <span class="topbar-title">Platform Setup Guide</span>
+  <span class="topbar-count">${configuredCount} / ${platforms.length} configured</span>
 </div>
 <div class="layout">
   <nav class="sidebar">
@@ -909,36 +1189,30 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);heig
 <script>
 const PLATFORM_IDS = ${JSON.stringify(platforms.map((p) => p.id))};
 function show(i) {
-  document.querySelectorAll('.plat-tab').forEach((t,j) => t.classList.toggle('active', j===i));
-  document.querySelectorAll('.panel').forEach((p,j) => p.classList.toggle('active', j===i));
-  if (PLATFORM_IDS[i]) history.replaceState(null, '', '#' + PLATFORM_IDS[i]);
+  document.querySelectorAll('.plat-tab').forEach((t,j)=>t.classList.toggle('active',j===i));
+  document.querySelectorAll('.panel').forEach((p,j)=>p.classList.toggle('active',j===i));
+  if(PLATFORM_IDS[i]) history.replaceState(null,'','#'+PLATFORM_IDS[i]);
 }
-function copy(text, btn) {
-  navigator.clipboard.writeText(text).then(() => {
+function copy(text,btn) {
+  const finish = () => {
     const orig = btn.textContent;
     btn.textContent = 'Copied!';
     btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1800);
-  }).catch(() => {
-    // fallback for non-HTTPS
-    const ta = document.createElement('textarea');
-    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+    setTimeout(()=>{ btn.textContent=orig; btn.classList.remove('copied'); },1800);
+  };
+  if(navigator.clipboard) { navigator.clipboard.writeText(text).then(finish).catch(fallback); }
+  else fallback();
+  function fallback() {
+    const ta=document.createElement('textarea');
+    ta.value=text; ta.style.cssText='position:fixed;opacity:0';
     document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); } catch {}
-    document.body.removeChild(ta);
-    const orig = btn.textContent;
-    btn.textContent = 'Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1800);
-  });
-}
-// Hash-based deep-linking: /setup#linkedin jumps to LinkedIn tab
-(function() {
-  const hash = location.hash.replace('#','').toLowerCase();
-  if (hash) {
-    const idx = PLATFORM_IDS.indexOf(hash);
-    if (idx !== -1) show(idx);
+    try{document.execCommand('copy');}catch{}
+    document.body.removeChild(ta); finish();
   }
+}
+(function(){
+  const hash=location.hash.replace('#','').toLowerCase();
+  if(hash){const idx=PLATFORM_IDS.indexOf(hash);if(idx!==-1)show(idx);}
 })();
 </script>
 </body>
