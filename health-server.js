@@ -1868,6 +1868,33 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── /app/read-x-provider — Show x.provider.ts source from container ─────
+  if (pathname === "/app/read-x-provider") {
+    try {
+      const { execSync } = require("child_process");
+      const rc = (cmd) => { try { return execSync(cmd, { timeout: 10000 }).toString().trim(); } catch(e) { return "(err: " + e.message.slice(0,120) + ")"; } };
+      // Find all x.provider files
+      const found = rc("find /app -name 'x.provider.*' -o -name 'twitter.provider.*' 2>/dev/null | grep -v node_modules | grep -v .next");
+      const lines = ["=== X/Twitter Provider Files ===", found || "(none found)", ""];
+      // Also search for 'external:' usage in backend source
+      const externalUsage = rc("grep -r 'external:' /app/apps /app/libs --include='*.ts' --include='*.js' -n 2>/dev/null | grep -v node_modules | grep -v .next | grep -v dist | head -30");
+      lines.push("=== 'external:' Redis key usage in source ===", externalUsage || "(none)", "");
+      // Show content of x.provider file
+      const xProviderFile = rc("find /app -name 'x.provider.ts' -not -path '*/node_modules/*' -not -path '*/.next/*' 2>/dev/null | head -1");
+      if (xProviderFile && !xProviderFile.startsWith("(err")) {
+        lines.push(`=== Content of ${xProviderFile} ===`);
+        const content = rc(`cat "${xProviderFile}"`);
+        lines.push(content.slice(0, 8000));
+      }
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end(lines.join("\n"));
+    } catch(e) {
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("Error: " + e.message);
+    }
+    return;
+  }
+
   // ── /app/debug-logs — Temporary endpoint for debugging ───────────────────
   if (pathname === "/app/debug-logs") {
     try {
