@@ -1949,25 +1949,32 @@ const server = http.createServer((req, res) => {
         redisSection += `Redis keyspace:\n${keyspace || "(empty)"}\n\n`;
 
         // Check DB 0 (default) and DB 1 for all keys
+        // Also inspect external:* keys — Postiz stores codeVerifier under external:{oauth_token}
+        const inspectKeys = (db, pattern) => {
+          const dbFlag = db === 0 ? "" : `-n ${db}`;
+          const keys = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} keys "${pattern}" 2>/dev/null`);
+          if (!keys || keys.startsWith("(")) return `  ${pattern}: (none)\n`;
+          let out = `  ${pattern} keys found:\n`;
+          for (const key of keys.split("\n").filter(Boolean).slice(0, 5)) {
+            const val = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} get "${key}" 2>/dev/null`);
+            const ttl = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} ttl "${key}" 2>/dev/null`);
+            if (!val) { out += `    ${key}: EMPTY! [TTL=${ttl}]\n`; continue; }
+            const colonIdx = val.indexOf(":");
+            const token  = colonIdx > 0 ? val.slice(0, colonIdx) : "";
+            const secret = colonIdx > 0 ? val.slice(colonIdx + 1) : "";
+            const extraColons = (val.match(/:/g) || []).length - 1;
+            const note = colonIdx < 0 ? "⚠ NO COLON" : extraColons > 0 ? `⚠ ${extraColons} extra colon(s)` : secret.length < 30 ? "⚠ secret short" : "✓ ok";
+            out += `    ${key} [TTL=${ttl}s]\n      token: ${token.slice(0,12)}... (len=${token.length})\n      secret: ${secret.slice(0,12)}... (len=${secret.length})\n      note: ${note}\n`;
+          }
+          return out;
+        };
+
         for (const db of [0, 1, 2]) {
           const dbFlag = db === 0 ? "" : `-n ${db}`;
           const allKeys = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} keys "*" 2>/dev/null`);
-          const loginKeys = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} keys "login:*" 2>/dev/null`);
           redisSection += `DB ${db}: total keys preview: ${allKeys ? allKeys.split("\n").slice(0,8).join(", ") : "(none)"}\n`;
-          redisSection += `DB ${db}: login:* keys: ${loginKeys || "(none)"}\n`;
-          if (loginKeys && !loginKeys.startsWith("(")) {
-            for (const key of loginKeys.split("\n").filter(Boolean).slice(0, 3)) {
-              const val = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} get "${key}" 2>/dev/null`);
-              const ttl = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} ttl "${key}" 2>/dev/null`);
-              if (!val) { redisSection += `  ${key}: EMPTY!\n`; continue; }
-              const colonIdx = val.indexOf(":");
-              const token  = colonIdx > 0 ? val.slice(0, colonIdx) : "";
-              const secret = colonIdx > 0 ? val.slice(colonIdx + 1) : "";
-              const extraColons = (val.match(/:/g) || []).length - 1;
-              const note = colonIdx < 0 ? "⚠ NO COLON!" : extraColons > 0 ? `⚠ ${extraColons} extra colon(s)` : secret.length < 30 ? "⚠ secret short" : "✓ ok";
-              redisSection += `  ${key} [TTL=${ttl}s]\n    token: ${token.slice(0,12)}... (len=${token.length})\n    secret: ${secret.slice(0,12)}... (len=${secret.length})\n    note: ${note}\n`;
-            }
-          }
+          redisSection += inspectKeys(db, "login:*");
+          redisSection += inspectKeys(db, "external:*");
           redisSection += "\n";
         }
       } catch (e) {
