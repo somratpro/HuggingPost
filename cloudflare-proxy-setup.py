@@ -147,11 +147,15 @@ async function handleRequest(request) {{
   headers.delete("x-target-host");
   headers.delete("x-proxy-key");
 
+  // Use redirect:"manual" so POST bodies are NOT silently dropped when X
+  // returns a 3xx (fetch spec converts POST→GET on 301/302 redirect, losing
+  // the OAuth-signed body and causing a signature mismatch → 500 from X).
+  // The Node.js client receives the raw 3xx and handles it with body intact.
   const proxiedRequest = new Request(targetUrl, {{
     method: request.method,
     headers,
     body: request.body,
-    redirect: "follow",
+    redirect: "manual",
   }});
 
   try {{

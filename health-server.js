@@ -1775,6 +1775,70 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── /app/test-twitter — raw connectivity probe to api.twitter.com ────────
+  if (pathname === "/app/test-twitter") {
+    const https = require("https");
+    const lines = [];
+    lines.push(`NODE_OPTIONS         : ${process.env.NODE_OPTIONS || "(not set)"}`);
+    lines.push(`CLOUDFLARE_PROXY_URL : ${process.env.CLOUDFLARE_PROXY_URL || "(not set)"}`);
+    lines.push("");
+    // Two probes:
+    //   A) GET api.twitter.com/ — basic reachability + proxy detection
+    //   B) POST oauth/access_token (no auth) — 4xx+JSON if IP allowed, 500 HTML if IP blocked
+    const makeProbe = (opts, postBody) => new Promise((resolve) => {
+      const t0 = Date.now();
+      const req = https.request({ ...opts, timeout: 10000 }, (r) => {
+        let body = "";
+        r.setEncoding("utf8");
+        r.on("data", (c) => { body += c; if (body.length > 800) r.destroy(); });
+        r.on("close", () => resolve({ status: r.statusCode, headers: r.headers, body: body.trim(), ms: Date.now() - t0 }));
+        r.on("end",  () => resolve({ status: r.statusCode, headers: r.headers, body: body.trim(), ms: Date.now() - t0 }));
+      });
+      req.on("error",   (e) => resolve({ error: e.message, ms: Date.now() - t0 }));
+      req.on("timeout", () => { req.destroy(); resolve({ error: "TIMEOUT 10s", ms: Date.now() - t0 }); });
+      if (postBody) req.write(postBody);
+      req.end();
+    });
+
+    (async () => {
+      // Probe A
+      lines.push("── Probe A: GET https://api.twitter.com/ ──");
+      const a = await makeProbe({ hostname: "api.twitter.com", path: "/", method: "GET",
+        headers: { "User-Agent": "curl/8.0", "Accept": "*/*" } });
+      if (a.error) {
+        lines.push(`ERROR: ${a.error}`);
+      } else {
+        lines.push(`Status : ${a.status}  (${a.ms}ms)`);
+        for (const [k, v] of Object.entries(a.headers)) lines.push(`  ${k}: ${v}`);
+        lines.push(`cf-ray in headers? : ${a.headers["cf-ray"] ? "YES → request went through Cloudflare" : "no"}`);
+        lines.push(`Body (first 300)   : ${a.body.slice(0, 300)}`);
+      }
+
+      // Probe B
+      lines.push("");
+      lines.push("── Probe B: POST https://api.twitter.com/oauth/access_token (no auth) ──");
+      lines.push("Expected: 400/401 JSON if IP allowed by X, 500 HTML if IP blocked");
+      const postBody = "oauth_verifier=test";
+      const b = await makeProbe({ hostname: "api.twitter.com", path: "/oauth/access_token",
+        method: "POST",
+        headers: { "User-Agent": "curl/8.0", "Content-Type": "application/x-www-form-urlencoded",
+                   "Content-Length": Buffer.byteLength(postBody) } }, postBody);
+      if (b.error) {
+        lines.push(`ERROR: ${b.error}`);
+      } else {
+        lines.push(`Status : ${b.status}  (${b.ms}ms)`);
+        for (const [k, v] of Object.entries(b.headers)) lines.push(`  ${k}: ${v}`);
+        const isHtml = b.body.includes("<html") || b.body.includes("<!DOCTYPE");
+        lines.push(`Body type : ${isHtml ? "HTML ← IP probably blocked" : "text/JSON ← IP allowed"}`);
+        lines.push(`Body (first 500) : ${b.body.slice(0, 500)}`);
+      }
+
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end(lines.join("\n"));
+    })();
+    return;
+  }
+
   // ── /app/debug-logs — Temporary endpoint for debugging ───────────────────
   if (pathname === "/app/debug-logs") {
     try {
