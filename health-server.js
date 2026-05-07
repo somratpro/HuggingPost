@@ -1938,6 +1938,50 @@ const server = http.createServer((req, res) => {
         ? fs.readFileSync("/tmp/x-oauth-callbacks.log", "utf8")
         : "(no X callbacks recorded yet — try adding X channel now)";
 
+      // Redis check: look up login:* keys and verify codeVerifier structure.
+      // Root cause check: oauth_token_secret must be present after split on ':'.
+      let redisSection = "=== REDIS codeVerifier CHECK ===\n";
+      try {
+        const { execSync } = require("child_process");
+        const keys = execSync(
+          'redis-cli -h 127.0.0.1 -p 6379 keys "login:*" 2>/dev/null', { timeout: 5000 }
+        ).toString().trim();
+
+        if (!keys) {
+          redisSection += "(no login:* keys in Redis — request_token may not have been called yet)";
+        } else {
+          redisSection += `Found keys:\n`;
+          for (const key of keys.split("\n").filter(Boolean).slice(0, 5)) {
+            const val = execSync(
+              `redis-cli -h 127.0.0.1 -p 6379 get "${key}" 2>/dev/null`, { timeout: 5000 }
+            ).toString().trim();
+            const ttl = execSync(
+              `redis-cli -h 127.0.0.1 -p 6379 ttl "${key}" 2>/dev/null`, { timeout: 5000 }
+            ).toString().trim();
+            if (!val) {
+              redisSection += `  ${key}: (empty or missing!)\n`;
+              continue;
+            }
+            const colonIdx = val.indexOf(":");
+            const token  = colonIdx > 0 ? val.slice(0, colonIdx)     : "(none — no colon found!)";
+            const secret = colonIdx > 0 ? val.slice(colonIdx + 1)    : "(none — no colon found!)";
+            const extraColons = (val.match(/:/g) || []).length - 1;
+            const tokenShow  = token.slice(0, 12)  + "... (len=" + token.length + ")";
+            const secretShow = secret.slice(0, 12) + "... (len=" + secret.length + ")";
+            const note = colonIdx < 0
+              ? "⚠ NO COLON — split will fail → empty secret → bad signature!"
+              : extraColons > 0
+                ? `⚠ ${extraColons} extra colon(s) in value — split(':')[1] truncates secret!`
+                : secret.length < 30
+                  ? "⚠ secret looks short — might be truncated"
+                  : "✓ format ok";
+            redisSection += `  ${key}\n    token : ${tokenShow}\n    secret: ${secretShow}\n    ttl   : ${ttl}s\n    note  : ${note}\n`;
+          }
+        }
+      } catch (e) {
+        redisSection += `(redis-cli error: ${e.message})`;
+      }
+
       const out = [
         credSection,
         "",
@@ -1945,6 +1989,8 @@ const server = http.createServer((req, res) => {
         "",
         "=== X OAUTH CALLBACKS (from health-server) ===",
         xCallbackLog,
+        "",
+        redisSection,
         "",
         "=== BACKEND ERROR LOG (last 150 lines) ===",
         errLog,
