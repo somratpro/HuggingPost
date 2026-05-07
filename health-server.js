@@ -1943,40 +1943,32 @@ const server = http.createServer((req, res) => {
       let redisSection = "=== REDIS codeVerifier CHECK ===\n";
       try {
         const { execSync } = require("child_process");
-        const keys = execSync(
-          'redis-cli -h 127.0.0.1 -p 6379 keys "login:*" 2>/dev/null', { timeout: 5000 }
-        ).toString().trim();
+        const rc = (cmd) => { try { return execSync(cmd, { timeout: 5000 }).toString().trim(); } catch(e) { return "(err: " + e.message.slice(0,60) + ")"; } };
 
-        if (!keys) {
-          redisSection += "(no login:* keys in Redis — request_token may not have been called yet)";
-        } else {
-          redisSection += `Found keys:\n`;
-          for (const key of keys.split("\n").filter(Boolean).slice(0, 5)) {
-            const val = execSync(
-              `redis-cli -h 127.0.0.1 -p 6379 get "${key}" 2>/dev/null`, { timeout: 5000 }
-            ).toString().trim();
-            const ttl = execSync(
-              `redis-cli -h 127.0.0.1 -p 6379 ttl "${key}" 2>/dev/null`, { timeout: 5000 }
-            ).toString().trim();
-            if (!val) {
-              redisSection += `  ${key}: (empty or missing!)\n`;
-              continue;
+        const keyspace = rc("redis-cli -h 127.0.0.1 -p 6379 info keyspace 2>/dev/null");
+        redisSection += `Redis keyspace:\n${keyspace || "(empty)"}\n\n`;
+
+        // Check DB 0 (default) and DB 1 for all keys
+        for (const db of [0, 1, 2]) {
+          const dbFlag = db === 0 ? "" : `-n ${db}`;
+          const allKeys = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} keys "*" 2>/dev/null`);
+          const loginKeys = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} keys "login:*" 2>/dev/null`);
+          redisSection += `DB ${db}: total keys preview: ${allKeys ? allKeys.split("\n").slice(0,8).join(", ") : "(none)"}\n`;
+          redisSection += `DB ${db}: login:* keys: ${loginKeys || "(none)"}\n`;
+          if (loginKeys && !loginKeys.startsWith("(")) {
+            for (const key of loginKeys.split("\n").filter(Boolean).slice(0, 3)) {
+              const val = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} get "${key}" 2>/dev/null`);
+              const ttl = rc(`redis-cli -h 127.0.0.1 -p 6379 ${dbFlag} ttl "${key}" 2>/dev/null`);
+              if (!val) { redisSection += `  ${key}: EMPTY!\n`; continue; }
+              const colonIdx = val.indexOf(":");
+              const token  = colonIdx > 0 ? val.slice(0, colonIdx) : "";
+              const secret = colonIdx > 0 ? val.slice(colonIdx + 1) : "";
+              const extraColons = (val.match(/:/g) || []).length - 1;
+              const note = colonIdx < 0 ? "⚠ NO COLON!" : extraColons > 0 ? `⚠ ${extraColons} extra colon(s)` : secret.length < 30 ? "⚠ secret short" : "✓ ok";
+              redisSection += `  ${key} [TTL=${ttl}s]\n    token: ${token.slice(0,12)}... (len=${token.length})\n    secret: ${secret.slice(0,12)}... (len=${secret.length})\n    note: ${note}\n`;
             }
-            const colonIdx = val.indexOf(":");
-            const token  = colonIdx > 0 ? val.slice(0, colonIdx)     : "(none — no colon found!)";
-            const secret = colonIdx > 0 ? val.slice(colonIdx + 1)    : "(none — no colon found!)";
-            const extraColons = (val.match(/:/g) || []).length - 1;
-            const tokenShow  = token.slice(0, 12)  + "... (len=" + token.length + ")";
-            const secretShow = secret.slice(0, 12) + "... (len=" + secret.length + ")";
-            const note = colonIdx < 0
-              ? "⚠ NO COLON — split will fail → empty secret → bad signature!"
-              : extraColons > 0
-                ? `⚠ ${extraColons} extra colon(s) in value — split(':')[1] truncates secret!`
-                : secret.length < 30
-                  ? "⚠ secret looks short — might be truncated"
-                  : "✓ format ok";
-            redisSection += `  ${key}\n    token : ${tokenShow}\n    secret: ${secretShow}\n    ttl   : ${ttl}s\n    note  : ${note}\n`;
           }
+          redisSection += "\n";
         }
       } catch (e) {
         redisSection += `(redis-cli error: ${e.message})`;
