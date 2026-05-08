@@ -237,7 +237,17 @@ Usually means Postgres didn't finish starting. Container will exit and HF will a
 - [Postiz on GitHub](https://github.com/gitroomhq/postiz-app)
 - [Postiz docs](https://docs.postiz.com)
 - [HuggingFace Spaces docs](https://huggingface.co/docs/hub/spaces)
-- More projects: [Hugging8n](https://huggingface.co/spaces/somratpro/Hugging8n) (n8n), [HuggingClip](https://huggingface.co/spaces/somratpro/HuggingClip) (Paperclip), [HuggingClaw](https://huggingface.co/spaces/somratpro/HuggingClaw) (OpenClaw), [HuggingMes](https://huggingface.co/spaces/somratpro/HuggingMes) (Messari)
+## 🌟 More Projects
+
+Similar projects by [@somratpro](https://github.com/somratpro) — all free, one-click deploy on HF Spaces:
+
+| Project | What it runs | HF Space | GitHub |
+| :--- | :--- | :--- | :--- |
+| **HuggingFlow** | DeerFlow — deep research agent | [Space](https://huggingface.co/spaces/somratpro/HuggingFlow) | [Repo](https://github.com/somratpro/HuggingFlow) |
+| **HuggingClip** | Paperclip — AI agent orchestration platform | [Space](https://huggingface.co/spaces/somratpro/HuggingClip) | [Repo](https://github.com/somratpro/huggingclip) |
+| **HuggingClaw** | OpenClaw — Claude Code in the browser | [Space](https://huggingface.co/spaces/somratpro/HuggingClaw) | [Repo](https://github.com/somratpro/huggingclaw) |
+| **HuggingMes** | Hermes — Self-hosted agent gateway | [Space](https://huggingface.co/spaces/somratpro/HuggingMes) | [Repo](https://github.com/somratpro/huggingmes) |
+| **Hugging8n** | n8n — workflow & automation platform | [Space](https://huggingface.co/spaces/somratpro/Hugging8n) | [Repo](https://github.com/somratpro/hugging8n) |
 
 ## 📄 License
 
