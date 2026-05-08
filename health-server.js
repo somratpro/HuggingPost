@@ -213,6 +213,150 @@ function getSocialPlatforms() {
   ];
 }
 
+// Returns detailed per-platform "direct connect" guide data (no OAuth / no env vars).
+// These platforms connect entirely inside the Postiz UI — no developer portal needed.
+function getDirectPlatformDetails(postizUrl) {
+  const postizIntegrations = `${postizUrl}/integrations`;
+  return [
+    {
+      id: "bluesky",
+      name: "Bluesky",
+      emoji: "🦋",
+      docsUrl: "https://bsky.social",
+      postizUrl: postizIntegrations,
+      fields: [
+        { label: "Service", value: "https://bsky.social", hint: "Default for bsky.social users. Custom instance: use your instance URL." },
+        { label: "Identifier", value: "yourname.bsky.social", hint: "Your full Bluesky handle." },
+        { label: "Password", value: "App Password", hint: "NOT your login password — generate a dedicated App Password in Bluesky settings." },
+      ],
+      steps: [
+        { title: "Create a Bluesky account", body: "Sign up at <a href=\"https://bsky.app\" target=\"_blank\" rel=\"noopener\">bsky.app</a> if you don't have one. Custom PDS users: use your own instance URL." },
+        { title: "Generate an App Password", body: "In Bluesky → <strong>Settings → Privacy and Security → App Passwords → Add App Password</strong>. Name it <em>HuggingPost</em>. Copy the generated password — it's shown only once." },
+        { title: "Open Postiz Integrations", body: "Click the button below to go to Postiz → click <strong>Connect</strong> next to Bluesky." },
+        { title: "Fill in credentials", body: "<strong>Service:</strong> <code>https://bsky.social</code> (or your instance URL)<br><strong>Identifier:</strong> your full handle (e.g. <code>yourname.bsky.social</code>)<br><strong>Password:</strong> the App Password from Step 2 — <em>not</em> your login password." },
+        { title: "Click Connect", body: "Postiz authenticates and adds your Bluesky account. You can post immediately." },
+      ],
+    },
+    {
+      id: "mastodon",
+      name: "Mastodon",
+      emoji: "🐘",
+      docsUrl: "https://joinmastodon.org",
+      postizUrl: postizIntegrations,
+      fields: [
+        { label: "Service", value: "https://mastodon.social", hint: "Your Mastodon instance URL (e.g. https://fosstodon.org)." },
+        { label: "Identifier", value: "yourhandle", hint: "Your username without the @instance part." },
+        { label: "Password", value: "Your password", hint: "Your Mastodon account password." },
+      ],
+      steps: [
+        { title: "Find your Mastodon instance URL", body: "Check your profile URL — it's the domain part (e.g. <code>mastodon.social</code>, <code>fosstodon.org</code>)." },
+        { title: "Open Postiz Integrations", body: "Click the button below → click <strong>Connect</strong> next to Mastodon." },
+        { title: "Fill in credentials", body: "<strong>Service:</strong> your full instance URL with https (e.g. <code>https://mastodon.social</code>)<br><strong>Identifier:</strong> your username (the part before @instance)<br><strong>Password:</strong> your account password." },
+        { title: "Click Connect", body: "Postiz will authenticate via Mastodon's API and add your account." },
+      ],
+    },
+    {
+      id: "telegram",
+      name: "Telegram",
+      emoji: "✈️",
+      docsUrl: "https://core.telegram.org/bots#how-do-i-create-a-bot",
+      postizUrl: postizIntegrations,
+      fields: [
+        { label: "Bot Token", value: "123456:ABC-DEF...", hint: "From @BotFather. Format: number:string." },
+      ],
+      steps: [
+        { title: "Create a Telegram Bot", body: "Open Telegram → message <strong>@BotFather</strong> → send <code>/newbot</code> → follow prompts → copy the <strong>Bot Token</strong> (format: <code>123456789:ABC-...</code>)." },
+        { title: "(Optional) Add bot to a channel", body: "To post to a Telegram channel: add your bot as an <strong>Admin</strong> of the channel with post permission." },
+        { title: "Open Postiz Integrations", body: "Click the button below → click <strong>Connect</strong> next to Telegram." },
+        { title: "Enter Bot Token", body: "Paste your Bot Token from @BotFather. Click Connect." },
+      ],
+    },
+    {
+      id: "devto",
+      name: "Dev.to",
+      emoji: "💻",
+      docsUrl: "https://dev.to/settings/extensions",
+      postizUrl: postizIntegrations,
+      fields: [
+        { label: "API Key", value: "Your Dev.to API key", hint: "From dev.to → Settings → Extensions → DEV API Keys." },
+      ],
+      steps: [
+        { title: "Log in to Dev.to", body: "Go to <a href=\"https://dev.to\" target=\"_blank\" rel=\"noopener\">dev.to</a> and sign in." },
+        { title: "Generate an API key", body: "Go to <strong>Settings → Extensions → DEV API Keys</strong>. Enter a description (e.g. <em>HuggingPost</em>) and click <strong>Generate API Key</strong>. Copy the key." },
+        { title: "Open Postiz Integrations", body: "Click the button below → click <strong>Connect</strong> next to Dev.to." },
+        { title: "Enter API key", body: "Paste your API key. Click Connect." },
+      ],
+    },
+    {
+      id: "hashnode",
+      name: "Hashnode",
+      emoji: "📰",
+      docsUrl: "https://hashnode.com/settings/developer",
+      postizUrl: postizIntegrations,
+      fields: [
+        { label: "Personal Access Token", value: "Your Hashnode token", hint: "From hashnode.com → Account Settings → Developer → Personal Access Token." },
+      ],
+      steps: [
+        { title: "Log in to Hashnode", body: "Go to <a href=\"https://hashnode.com\" target=\"_blank\" rel=\"noopener\">hashnode.com</a> and sign in." },
+        { title: "Generate a Personal Access Token", body: "Go to <strong>Account Settings → Developer → Personal Access Token → Generate new token</strong>. Name it <em>HuggingPost</em>. Copy the token." },
+        { title: "Open Postiz Integrations", body: "Click the button below → click <strong>Connect</strong> next to Hashnode." },
+        { title: "Enter token", body: "Paste your Personal Access Token. Click Connect." },
+      ],
+    },
+    {
+      id: "nostr",
+      name: "Nostr",
+      emoji: "🔑",
+      docsUrl: "https://nostr.how/en/get-started",
+      postizUrl: postizIntegrations,
+      fields: [
+        { label: "Private Key", value: "nsec1...", hint: "Your Nostr private key in nsec (bech32) format." },
+      ],
+      steps: [
+        { title: "Get a Nostr keypair", body: "Use a Nostr client like <a href=\"https://snort.social\" target=\"_blank\" rel=\"noopener\">Snort</a> or <a href=\"https://primal.net\" target=\"_blank\" rel=\"noopener\">Primal</a> to create or export your keys. You need the <strong>private key</strong> in <code>nsec1...</code> format." },
+        { title: "⚠️ Security note", body: "Your private key controls your entire Nostr identity. Only enter it in trusted apps. HuggingPost is self-hosted — your key stays in your container." },
+        { title: "Open Postiz Integrations", body: "Click the button below → click <strong>Connect</strong> next to Nostr." },
+        { title: "Enter private key", body: "Paste your <code>nsec1...</code> private key. Click Connect." },
+      ],
+    },
+    {
+      id: "lemmy",
+      name: "Lemmy",
+      emoji: "🐾",
+      docsUrl: "https://join-lemmy.org",
+      postizUrl: postizIntegrations,
+      fields: [
+        { label: "Instance", value: "https://lemmy.world", hint: "Your Lemmy instance URL." },
+        { label: "Username", value: "yourhandle", hint: "Your Lemmy username." },
+        { label: "Password", value: "Your password", hint: "Your Lemmy account password." },
+      ],
+      steps: [
+        { title: "Find your Lemmy instance", body: "You need the full URL of your Lemmy instance (e.g. <code>https://lemmy.world</code>, <code>https://lemmy.ml</code>). Find it at <a href=\"https://join-lemmy.org\" target=\"_blank\" rel=\"noopener\">join-lemmy.org</a>." },
+        { title: "Open Postiz Integrations", body: "Click the button below → click <strong>Connect</strong> next to Lemmy." },
+        { title: "Fill in credentials", body: "<strong>Instance:</strong> your instance URL<br><strong>Username:</strong> your account username<br><strong>Password:</strong> your account password." },
+        { title: "Click Connect", body: "Postiz authenticates via Lemmy's API." },
+      ],
+    },
+    {
+      id: "warpcast",
+      name: "Warpcast",
+      emoji: "🟣",
+      docsUrl: "https://docs.farcaster.xyz",
+      postizUrl: postizIntegrations,
+      fields: [
+        { label: "FID", value: "12345", hint: "Your Farcaster user ID (numeric)." },
+        { label: "Private Key", value: "0x...", hint: "Your Farcaster custody private key (hex, 0x-prefixed)." },
+      ],
+      steps: [
+        { title: "Find your FID", body: "Your Farcaster ID (FID) is a numeric value. In Warpcast → Profile → the number in your profile URL, or use <a href=\"https://www.farcaster.xyz\" target=\"_blank\" rel=\"noopener\">farcaster.xyz</a> to look it up." },
+        { title: "Export your private key", body: "In Warpcast → <strong>Settings → Advanced → Recovery phrase</strong>, or use a Farcaster tool to derive your custody private key. The key is in hex format (<code>0x...</code>)." },
+        { title: "Open Postiz Integrations", body: "Click the button below → click <strong>Connect</strong> next to Warpcast." },
+        { title: "Enter FID and private key", body: "Paste your FID and private key. Click Connect." },
+      ],
+    },
+  ];
+}
+
 // Returns detailed per-platform OAuth setup guide data.
 // publicUrl: "https://somratpro-huggingpost.hf.space" (no trailing slash)
 function getOAuthPlatformDetails(publicUrl) {
@@ -708,17 +852,20 @@ function renderSetupPage() {
   const publicUrl = spaceHost
     ? `https://${spaceHost}`
     : "http://localhost:7860";
+  const postizUrl = publicUrl + "/app";
   const settingsUrl = spaceId
     ? `https://huggingface.co/spaces/${spaceId}/settings`
     : "https://huggingface.co/settings/spaces";
 
   const platforms = getOAuthPlatformDetails(publicUrl);
+  const directPlatforms = getDirectPlatformDetails(postizUrl);
   const configuredCount = platforms.filter((p) =>
     p.envVars.every((v) => v.set),
   ).length;
+  const totalPanels = platforms.length + directPlatforms.length;
 
-  // Build sidebar items
-  const sidebarItems = platforms.map((p, i) => {
+  // ── Build sidebar ────────────────────────────────────────────────────────────
+  const oauthSidebarItems = platforms.map((p, i) => {
     const allSet = p.envVars.every((v) => v.set);
     const anySet = p.envVars.some((v) => v.set);
     const dot = allSet
@@ -733,8 +880,17 @@ function renderSetupPage() {
     </button>`;
   }).join("");
 
-  // Build detail panels
-  const panels = platforms.map((p, i) => {
+  const directSidebarItems = directPlatforms.map((p, i) => {
+    const idx = platforms.length + i;
+    return `<button class="plat-tab" onclick="show(${idx})" id="tab-${idx}">
+      <span class="tab-emoji">${p.emoji}</span>
+      <span class="tab-name">${p.name}</span>
+      <span class="dot dot-ok"></span>
+    </button>`;
+  }).join("");
+
+  // ── Build OAuth panels ───────────────────────────────────────────────────────
+  const oauthPanels = platforms.map((p, i) => {
     const allSet = p.envVars.every((v) => v.set);
     const anySet = p.envVars.some((v) => v.set);
 
@@ -791,7 +947,7 @@ function renderSetupPage() {
       </div>
       <div class="copy-block">
         <span class="copy-block-text">${p.callbackUrl}</span>
-        <button class="btn-copy btn-copy-accent" onclick="copy('${p.callbackUrl}',this)">Copy</button>
+        <button class="btn-copy btn-copy-white" onclick="copy('${p.callbackUrl}',this)">Copy</button>
       </div>
 
       <div class="section-label">Space Secrets to Add
@@ -799,12 +955,69 @@ function renderSetupPage() {
       </div>
       <div class="env-list">${envRows}</div>
 
-      <a href="${settingsUrl}" target="_blank" rel="noopener" class="settings-btn">
+      <a href="${settingsUrl}" target="_blank" rel="noopener" class="cta-btn">
         Open Space Settings → Variables &amp; Secrets
       </a>
       <p class="hint-final">After adding all secrets, click <strong>Restart Space</strong> for them to take effect.</p>
     </div>`;
   }).join("");
+
+  // ── Build direct-connect panels ──────────────────────────────────────────────
+  const directPanels = directPlatforms.map((p, i) => {
+    const idx = platforms.length + i;
+
+    const stepsList = p.steps.map((s, si) =>
+      `<div class="step">
+        <div class="step-num">${si + 1}</div>
+        <div>
+          <div class="step-title">${s.title}</div>
+          <div class="step-body">${s.body}</div>
+        </div>
+      </div>`
+    ).join("");
+
+    const fieldRows = (p.fields || []).map((f) =>
+      `<div class="env-row">
+        <div class="env-info">
+          <code class="env-name">${f.label}</code>
+          <span class="env-desc">${f.hint}</span>
+        </div>
+        <div class="env-actions">
+          <span class="badge ok">READY</span>
+        </div>
+      </div>`
+    ).join("");
+
+    return `<div class="panel" id="panel-${idx}">
+      <div class="panel-head">
+        <span class="panel-emoji">${p.emoji}</span>
+        <div>
+          <div class="panel-title">${p.name}</div>
+          <div class="panel-links">
+            ${p.docsUrl ? `<a href="${p.docsUrl}" target="_blank" rel="noopener">Official Docs →</a>` : ""}
+          </div>
+        </div>
+      </div>
+
+      <div class="banner banner-ok">No developer portal needed — connects directly inside Postiz.</div>
+
+      <div class="section-label">Setup Steps</div>
+      <div class="steps-list">${stepsList}</div>
+
+      ${fieldRows ? `<div class="section-label">Fields Required in Postiz</div>
+      <div class="env-list">${fieldRows}</div>` : ""}
+
+      <a href="${p.postizUrl}" target="_blank" rel="noopener" class="cta-btn">
+        Open Postiz Integrations →
+      </a>
+      <p class="hint-final">Click <strong>Connect</strong> next to ${p.name} in Postiz, fill in the credentials above.</p>
+    </div>`;
+  }).join("");
+
+  const allPlatformIds = [
+    ...platforms.map((p) => p.id),
+    ...directPlatforms.map((p) => p.id),
+  ];
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -827,7 +1040,6 @@ function renderSetupPage() {
   --warn:   #f5c542;
   --bad:    #fb7185;
   --accent: #3b82f6;
-  --accent2:#8b5cf6;
 }
 body {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -905,10 +1117,15 @@ body {
   color: var(--muted);
   padding: 6px 10px 10px;
 }
+.sidebar-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 4px 8px;
+}
 .plat-tab {
   width: 100%;
   background: none;
-  border: none;
+  border: 1px solid transparent;
   color: var(--soft);
   font: inherit;
   font-size: .82rem;
@@ -921,7 +1138,6 @@ body {
   cursor: pointer;
   text-align: left;
   transition: background .12s, color .12s;
-  border: 1px solid transparent;
 }
 .plat-tab:hover { background: var(--panel2); color: var(--text); }
 .plat-tab.active {
@@ -952,7 +1168,7 @@ body {
 .panel-title { font-size: 1.4rem; font-weight: 850; margin-bottom: 6px; }
 .panel-links { display: flex; gap: 14px; flex-wrap: wrap; }
 .panel-links a {
-  color: var(--accent2);
+  color: var(--accent);
   font-size: .76rem;
   font-weight: 700;
   text-decoration: none;
@@ -1008,7 +1224,7 @@ body {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  background: var(--accent);
   color: #fff;
   font-size: .68rem;
   font-weight: 850;
@@ -1021,6 +1237,7 @@ body {
 .step-title { font-size: .82rem; font-weight: 800; margin-bottom: 3px; color: var(--text); }
 .step-body  { font-size: .78rem; color: var(--soft); line-height: 1.6; }
 .step-body strong { color: var(--text); font-weight: 800; }
+.step-body em { color: var(--soft); font-style: italic; }
 .step-body code {
   background: var(--panel2);
   border: 1px solid var(--line);
@@ -1029,7 +1246,7 @@ body {
   font-size: .85em;
   color: var(--text);
 }
-.step-body a { color: var(--accent2); text-decoration: none; }
+.step-body a { color: var(--accent); text-decoration: none; }
 .step-body a:hover { text-decoration: underline; }
 
 /* Callback copy block */
@@ -1046,12 +1263,12 @@ body {
   flex: 1;
   font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
   font-size: .78rem;
-  color: var(--accent2);
+  color: var(--accent);
   word-break: break-all;
   opacity: .9;
 }
 
-/* Env var rows */
+/* Env var / field rows */
 .env-list { display: flex; flex-direction: column; gap: 5px; }
 .env-row {
   display: flex;
@@ -1066,9 +1283,9 @@ body {
 .env-name {
   font-family: ui-monospace, "Cascadia Code", monospace;
   font-size: .78rem;
-  color: var(--accent2);
-  background: rgba(139,92,246,.12);
-  border: 1px solid rgba(139,92,246,.2);
+  color: var(--accent);
+  background: rgba(59,130,246,.1);
+  border: 1px solid rgba(59,130,246,.2);
   padding: 2px 7px;
   border-radius: 5px;
   width: fit-content;
@@ -1092,7 +1309,7 @@ body {
 .badge.ok  { color: var(--good); border-color: rgba(34,197,94,.3);  background: rgba(34,197,94,.1);  }
 .badge.off { color: var(--bad);  border-color: rgba(251,113,133,.3); background: rgba(251,113,133,.1); }
 
-/* Buttons */
+/* Buttons — secondary (small copy buttons) */
 .btn-copy {
   background: var(--panel2);
   border: 1px solid var(--line);
@@ -1109,30 +1326,43 @@ body {
 }
 .btn-copy:hover { background: var(--line); color: var(--text); }
 .btn-copy.copied { background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.3); color: var(--good); }
-.btn-copy-accent {
-  background: rgba(59,130,246,.12);
-  border-color: rgba(59,130,246,.3);
-  color: #93c5fd;
-  font-size: .76rem;
-  padding: 6px 14px;
-}
-.btn-copy-accent:hover { background: rgba(59,130,246,.2); }
 
-/* Settings CTA */
-.settings-btn {
+/* White copy button (accent copy block) */
+.btn-copy-white {
+  background: #ffffff;
+  border: 1px solid #ffffff;
+  color: #0d0c1a;
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 800;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .12s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.btn-copy-white:hover { background: #e8e8f0; border-color: #e8e8f0; }
+.btn-copy-white.copied { background: rgba(34,197,94,.15); border-color: rgba(34,197,94,.4); color: var(--good); }
+
+/* Primary CTA button — white with dark text */
+.cta-btn {
   display: inline-flex;
   align-items: center;
-  margin-top: 16px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  color: #fff;
+  margin-top: 18px;
+  background: #ffffff;
+  color: #0d0c1a;
   text-decoration: none;
-  padding: 10px 20px;
+  padding: 10px 22px;
   border-radius: 8px;
   font-size: .82rem;
   font-weight: 850;
-  transition: opacity .15s;
+  border: none;
+  transition: background .15s;
+  letter-spacing: .01em;
 }
-.settings-btn:hover { opacity: .85; }
+.cta-btn:hover { background: #e8e8f0; }
+
 .hint-final {
   margin-top: 10px;
   font-size: .74rem;
@@ -1157,6 +1387,7 @@ body {
     gap: 4px;
   }
   .sidebar-label { display: none; }
+  .sidebar-divider { display: none; }
   .plat-tab { width: auto; flex: 0 0 auto; }
   .tab-name { display: none; }
   .main { padding: 16px; }
@@ -1167,19 +1398,23 @@ body {
 <div class="topbar">
   <a class="topbar-back" href="/">← Dashboard</a>
   <span class="topbar-title">Platform Setup Guide</span>
-  <span class="topbar-count">${configuredCount} / ${platforms.length} configured</span>
+  <span class="topbar-count">${configuredCount} / ${platforms.length} OAuth configured</span>
 </div>
 <div class="layout">
   <nav class="sidebar">
     <div class="sidebar-label">OAuth Platforms</div>
-    ${sidebarItems}
+    ${oauthSidebarItems}
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-label">Direct Connect</div>
+    ${directSidebarItems}
   </nav>
   <main class="main">
-    ${panels}
+    ${oauthPanels}
+    ${directPanels}
   </main>
 </div>
 <script>
-const PLATFORM_IDS = ${JSON.stringify(platforms.map((p) => p.id))};
+const PLATFORM_IDS = ${JSON.stringify(allPlatformIds)};
 function show(i) {
   document.querySelectorAll('.plat-tab').forEach((t,j)=>t.classList.toggle('active',j===i));
   document.querySelectorAll('.panel').forEach((p,j)=>p.classList.toggle('active',j===i));
