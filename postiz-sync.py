@@ -35,7 +35,7 @@ import huggingface_hub
 huggingface_hub.utils.disable_progress_bars()
 
 # ── Logging ──────────────────────────────────────────────────────────────────
-logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.WARNING, format="[sync] %(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -132,7 +132,7 @@ def backup_database() -> tuple[str | None, bool]:
             logger.error(f"pg_dump failed: {result.stderr.decode('utf-8', errors='ignore')}")
             return None, False
         size_mb = dump_file.stat().st_size / 1024 / 1024
-        logger.info(f"Database dumped ({size_mb:.2f} MB)")
+        logger.debug(f"Database dumped ({size_mb:.2f} MB)")
         return str(dump_file), True
     except subprocess.TimeoutExpired:
         logger.error("pg_dump timed out (>600s)")
@@ -170,7 +170,7 @@ def create_backup_tarball(dump_file: str) -> tuple[str | None, bool]:
         _write_tarball(tarball, dump_file, include_next=True)
         size = tarball.stat().st_size
         size_mb = size / 1024 / 1024
-        logger.info(f"Tarball created ({size_mb:.2f} MB)")
+        logger.debug(f"Tarball created ({size_mb:.2f} MB)")
         if size > SYNC_MAX_FILE_BYTES:
             logger.warning(
                 f"Tarball with .next too large ({size_mb:.0f} MB > "
@@ -182,7 +182,7 @@ def create_backup_tarball(dump_file: str) -> tuple[str | None, bool]:
             _write_tarball(tarball, dump_file, include_next=False)
             size = tarball.stat().st_size
             size_mb = size / 1024 / 1024
-            logger.info(f"Tarball without .next: {size_mb:.2f} MB")
+            logger.debug(f"Tarball without .next: {size_mb:.2f} MB")
             if size > SYNC_MAX_FILE_BYTES:
                 logger.error(
                     f"Backup still too large without .next ({size_mb:.0f} MB > "

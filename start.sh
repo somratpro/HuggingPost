@@ -146,10 +146,9 @@ su-exec postgres psql -c "ALTER ROLE postiz WITH PASSWORD '${DB_PASSWORD}';" >/d
 su-exec postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='postiz'" | grep -q 1 \
     || su-exec postgres psql -c "CREATE DATABASE postiz OWNER postiz;" >/dev/null
 
-echo "Postgres ready"
+echo "✓ Postgres"
 
 # ── Redis ────────────────────────────────────────────────────────────────────
-echo "Starting Redis..."
 redis-server --daemonize yes \
     --bind 127.0.0.1 \
     --port 6379 \
@@ -161,7 +160,7 @@ for _ in $(seq 1 10); do
     redis-cli -h 127.0.0.1 -p 6379 ping 2>/dev/null | grep -q PONG && break
     sleep 1
 done
-echo "Redis ready"
+echo "✓ Redis"
 
 # ── Restore from HF Dataset ──────────────────────────────────────────────────
 if [ -n "${HF_TOKEN:-}" ]; then
@@ -281,14 +280,26 @@ sleep 1
 # ── Postiz: nginx + PM2 (mirrors upstream CMD `nginx && pnpm run pm2`) ───────
 # pm2-run script does: pm2 delete all || true && pnpm run prisma-db-push
 #                      && pnpm run --parallel pm2 && pm2 logs
-echo "Starting nginx + Postiz PM2 procs..."
+echo "Starting Postiz..."
 cd "${POSTIZ_DIR}"
 ( nginx && pnpm run pm2 2>&1 | grep -Ev \
-    '\[RoutesResolver\]|\[RouterExplorer\]|Mapped \{|\(Use --lines|__/\\\\|_\\/\\\\|PM2 log:|Progress: resolved|[┌┐└┘├┤│─┼]|Runtime Edition|Production Process Manager|built-in Load Balancer|Start and Daemonize|Load Balance|Make pm2 auto-boot|To go further|pm2\.io|pm2 monitor|pm2 startup|pm2 start ' \
+    -e '\[RoutesResolver\]|\[RouterExplorer\]|Mapped \{|\[InstanceLoader\]' \
+    -e '\[PM2\] (Spawning|Successfully daemonized|Starting .* fork_mode|Done\.)' \
+    -e '\[PM2\]\[WARN\] No process' \
+    -e 'Runtime Edition|Production Process Manager|built-in Load Balancer' \
+    -e 'Start and Daemonize|Load Balance|Make pm2 auto-boot|To go further' \
+    -e 'pm2\.io|pm2 monitor|pm2 startup|PM2 log:|pm2 start ' \
+    -e '\[TAILING\]|/root/\.pm2/logs/' \
+    -e 'Packages: \+[0-9]|^\+\+\+|preinstall\$|preinstall: Done' \
+    -e 'Scope: [0-9]+ of|Progress: resolved|\(Use --lines' \
+    -e '^apps/(frontend|backend|cron|workers) pm2:' \
+    -e '^> gitroom@|^> postiz-[a-z]|^> pnpm (dlx|run)|^> dotenv' \
+    -e '[┌┐└┘├┤│─┼]|_\\/+_|\-{10,}' \
+    -e '^[[:space:]]*$' \
   | sed 's/^/[postiz] /' ) &
 POSTIZ_PID=$!
 
-echo "Waiting for nginx (port 5000)..."
+echo "Waiting for Postiz..."
 for i in $(seq 1 90); do
     if curl -sf -m 2 http://127.0.0.1:5000/ >/dev/null 2>&1; then
         echo "Postiz ready (~$((i*2))s)"
