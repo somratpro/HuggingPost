@@ -2205,6 +2205,27 @@ const server = http.createServer((req, res) => {
     try {
       fs.appendFileSync("/tmp/x-oauth-callbacks.log", msg + "\n");
     } catch(_) {}
+
+    // Snapshot Redis 100ms, 500ms, 1500ms after callback to catch login: key before it's deleted
+    if (!denied && oauthToken !== "(missing)") {
+      const snapshots = [];
+      const doSnap = (delay) => setTimeout(() => {
+        try {
+          const { execSync } = require("child_process");
+          const rc = (cmd) => { try { return execSync(cmd, { timeout: 3000 }).toString().trim(); } catch(e) { return "(err)"; } };
+          const loginVal  = rc(`redis-cli -h 127.0.0.1 -p 6379 get "login:${oauthToken}" 2>/dev/null`);
+          const extVal    = rc(`redis-cli -h 127.0.0.1 -p 6379 get "external:${oauthToken}" 2>/dev/null`);
+          const loginTtl  = rc(`redis-cli -h 127.0.0.1 -p 6379 ttl "login:${oauthToken}" 2>/dev/null`);
+          const extTtl    = rc(`redis-cli -h 127.0.0.1 -p 6379 ttl "external:${oauthToken}" 2>/dev/null`);
+          const snap = `  [+${delay}ms] login:TOKEN=${loginVal ? loginVal.slice(0,40) + "...(len=" + loginVal.length + ")" : "(empty/missing)"} ttl=${loginTtl} | external:TOKEN=${extVal ? extVal.slice(0,40) + "...(len=" + extVal.length + ")" : "(empty/missing)"} ttl=${extTtl}`;
+          snapshots.push(snap);
+          fs.appendFileSync("/tmp/x-oauth-callbacks.log", snap + "\n");
+        } catch(_) {}
+      }, delay);
+      doSnap(100);
+      doSnap(500);
+      doSnap(1500);
+    }
   }
 
   res.writeHead(302, {
