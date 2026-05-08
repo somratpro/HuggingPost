@@ -90,6 +90,15 @@ export SYNC_INTERVAL="${SYNC_INTERVAL:-3600}"  # 60 minutes (override with SYNC_
 export SYNC_MAX_FILE_BYTES="${SYNC_MAX_FILE_BYTES:-524288000}"  # 500 MB (default; covers .next + DB + uploads)
 export BACKUP_DATASET_NAME="${BACKUP_DATASET_NAME:-huggingpost-backup}"
 
+# ── Google → YouTube env alias ───────────────────────────────────────────────
+# Postiz internally uses YOUTUBE_CLIENT_ID/SECRET for both Google OAuth login
+# and YouTube channel integration. Users set the friendlier GOOGLE_CLIENT_ID/
+# SECRET; we map them here so Postiz picks them up automatically.
+if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
+    export YOUTUBE_CLIENT_ID="${GOOGLE_CLIENT_ID}"
+    export YOUTUBE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET:-}"
+fi
+
 # ── Banner ───────────────────────────────────────────────────────────────────
 echo ""
 echo "  ╔════════════════════════════════════╗"

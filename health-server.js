@@ -118,6 +118,14 @@ function getSocialPlatforms() {
     },
     // ── Needs OAuth app (env vars required) ───────────────────────────────────
     {
+      id: "google",
+      name: "Google Login",
+      emoji: "🔵",
+      ready: !!(e.GOOGLE_CLIENT_ID || e.YOUTUBE_CLIENT_ID),
+      setupUrl: "https://console.cloud.google.com/apis/credentials",
+      envVars: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+    },
+    {
       id: "linkedin",
       name: "LinkedIn",
       emoji: "💼",
@@ -162,9 +170,10 @@ function getSocialPlatforms() {
       id: "youtube",
       name: "YouTube",
       emoji: "▶️",
-      ready: !!e.YOUTUBE_CLIENT_ID,
+      ready: !!(e.GOOGLE_CLIENT_ID || e.YOUTUBE_CLIENT_ID),
       setupUrl: "https://console.cloud.google.com/apis/credentials",
-      envVars: ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET"],
+      envVars: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+      note: "Uses same app as Google Login",
     },
     {
       id: "tiktok",
@@ -568,53 +577,90 @@ function getOAuthPlatformDetails(publicUrl) {
       ],
     },
     {
-      id: "youtube",
-      name: "YouTube",
-      emoji: "▶️",
+      id: "google",
+      name: "Google Login",
+      emoji: "🔵",
       setupUrl: "https://console.cloud.google.com/apis/credentials",
-      docsUrl:
-        "https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps",
-      callbackUrl: cb("youtube"),
+      docsUrl: "https://developers.google.com/identity/protocols/oauth2",
+      callbackUrl: cb("google"),
       envVars: [
         {
-          name: "YOUTUBE_CLIENT_ID",
+          name: "GOOGLE_CLIENT_ID",
           desc: "OAuth 2.0 Client ID",
-          set: !!e.YOUTUBE_CLIENT_ID,
+          set: !!(e.GOOGLE_CLIENT_ID || e.YOUTUBE_CLIENT_ID),
         },
         {
-          name: "YOUTUBE_CLIENT_SECRET",
+          name: "GOOGLE_CLIENT_SECRET",
           desc: "OAuth 2.0 Client Secret",
-          set: !!e.YOUTUBE_CLIENT_SECRET,
+          set: !!(e.GOOGLE_CLIENT_SECRET || e.YOUTUBE_CLIENT_SECRET),
         },
       ],
       steps: [
         {
           title: "Create a Google Cloud project",
-          body: "Go to Google Cloud Console. Create a new project (or use existing).",
-        },
-        {
-          title: "Enable YouTube Data API v3",
-          body: "In APIs & Services → Library, search for <strong>YouTube Data API v3</strong> and enable it.",
-        },
-        {
-          title: "Create OAuth credentials",
-          body: "In APIs & Services → Credentials, click <strong>Create Credentials → OAuth client ID</strong>. Set type to <strong>Web application</strong>.",
-        },
-        {
-          title: "Add callback URL",
-          body: "Under Authorized redirect URIs, paste the callback URL below.",
+          body: 'Go to <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a>. Create a new project (or use an existing one).',
         },
         {
           title: "Configure OAuth consent screen",
-          body: "Set up consent screen with your app name. Add <strong>YouTube</strong> scopes.",
+          body: "In <strong>APIs & Services → OAuth consent screen</strong>, set User Type to <strong>External</strong>. Fill app name, support email, developer email. Add scopes: <code>email</code>, <code>profile</code>, <code>openid</code>. Add your own Google account as a test user.",
+        },
+        {
+          title: "Create OAuth 2.0 credentials",
+          body: "In <strong>APIs & Services → Credentials</strong>, click <strong>Create Credentials → OAuth client ID</strong>. Set type to <strong>Web application</strong>. Name it <em>HuggingPost</em>.",
+        },
+        {
+          title: "Add callback URLs",
+          body: "Under <strong>Authorized redirect URIs</strong>, add the callback URL below. Also add the YouTube callback URL if you plan to connect YouTube — it is shown on the YouTube tab.",
         },
         {
           title: "Copy credentials",
-          body: "Download or copy the <strong>Client ID</strong> and <strong>Client Secret</strong>.",
+          body: "Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> shown in the dialog.",
         },
         {
           title: "Add to Space secrets",
-          body: "Add both env vars below to your HF Space settings, then restart.",
+          body: "Add <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> to HF Space → Settings → Variables &amp; Secrets. Restart the Space. <br><br><strong>💡 These same credentials also power YouTube channel connections</strong> — no separate YouTube OAuth app needed.",
+        },
+      ],
+    },
+    {
+      id: "youtube",
+      name: "YouTube",
+      emoji: "▶️",
+      setupUrl: "https://console.cloud.google.com/apis/credentials",
+      docsUrl: "https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps",
+      callbackUrl: cb("youtube"),
+      envVars: [
+        {
+          name: "GOOGLE_CLIENT_ID",
+          desc: "OAuth 2.0 Client ID (same as Google Login)",
+          set: !!(e.GOOGLE_CLIENT_ID || e.YOUTUBE_CLIENT_ID),
+        },
+        {
+          name: "GOOGLE_CLIENT_SECRET",
+          desc: "OAuth 2.0 Client Secret (same as Google Login)",
+          set: !!(e.GOOGLE_CLIENT_SECRET || e.YOUTUBE_CLIENT_SECRET),
+        },
+      ],
+      steps: [
+        {
+          title: "Already set up Google Login?",
+          body: "✅ <strong>Skip to Step 2.</strong> YouTube uses the same <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> — no new OAuth app needed. Just enable the YouTube API and add the callback URL.",
+        },
+        {
+          title: "Enable YouTube Data API v3",
+          body: "In <a href=\"https://console.cloud.google.com/apis/library\" target=\"_blank\" rel=\"noopener\">APIs & Services → Library</a>, search for <strong>YouTube Data API v3</strong> and click <strong>Enable</strong>.",
+        },
+        {
+          title: "Add YouTube callback URL to your OAuth client",
+          body: "In <strong>Credentials → your OAuth client → Edit</strong>, add the callback URL below to <strong>Authorized redirect URIs</strong>. Save.",
+        },
+        {
+          title: "Add YouTube scopes to consent screen",
+          body: "In <strong>OAuth consent screen → Edit App → Scopes</strong>, add <code>https://www.googleapis.com/auth/youtube.upload</code> and <code>https://www.googleapis.com/auth/youtube</code>.",
+        },
+        {
+          title: "First time setup only: add GOOGLE_* secrets",
+          body: "If you haven't done Google Login yet — add <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> to HF Space secrets and restart. If Google Login is already working, no new secrets needed.",
         },
       ],
     },
