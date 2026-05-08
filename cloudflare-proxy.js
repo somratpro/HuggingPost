@@ -79,6 +79,19 @@ if (PROXY_URL) {
       return should;
     };
 
+    // Paths that must go DIRECT (bypass CF proxy) even for proxied hosts.
+    // oauth/access_token: OAuth 1.0a signature is tied to the exact request;
+    // going through the CF Worker was causing X to return 500.
+    const DIRECT_PATH_PATTERNS = [
+      "/oauth/access_token",
+    ];
+    const shouldBypassPath = (path) => {
+      if (!path) return false;
+      const matched = DIRECT_PATH_PATTERNS.some((p) => String(path).includes(p));
+      if (matched) log(`[cloudflare-proxy] DIRECT (bypass) for path: ${path}`);
+      return matched;
+    };
+
     const patch = (original, originalModuleName) => {
       return function patchedRequest(arg1, arg2, arg3) {
         let options = {};
@@ -109,7 +122,7 @@ if (PROXY_URL) {
         const path = options.path || "/";
         const headers = options.headers || {};
 
-        const shouldProxy = shouldProxyHost(hostname);
+        const shouldProxy = shouldProxyHost(hostname) && !shouldBypassPath(path);
         const alreadyProxied = options._proxied;
         const hasTargetHeader =
           headers["x-target-host"] || headers["X-Target-Host"];
@@ -163,8 +176,8 @@ if (PROXY_URL) {
         }
 
         const hostname = url.hostname;
-        const shouldProxy = shouldProxyHost(hostname);
-        
+        const shouldProxy = shouldProxyHost(hostname) && !shouldBypassPath(url.pathname);
+
         let mergedHeaders;
         if (request) {
             mergedHeaders = new Headers(request.headers);
@@ -285,7 +298,7 @@ if (PROXY_URL) {
               hostname = String(origin || "").split(':')[0];
             }
 
-            if (hostname && shouldProxyHost(hostname)) {
+            if (hostname && shouldProxyHost(hostname) && !shouldBypassPath(options.path)) {
               if (DEBUG) log(`[cloudflare-proxy] Redirecting undici ${name}.dispatch: ${hostname}${options.path || ""} -> ${proxy.hostname}`);
               
               const targetHeader = "x-target-host";
