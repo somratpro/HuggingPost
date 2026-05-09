@@ -1786,7 +1786,7 @@ function renderDashboard(data) {
 <body>
   <main>
     <header>
-      <h1>📮 HuggingPost</h1>
+      <h1>📝 HuggingPost</h1>
       <div class="subtitle">Self-hosted Postiz Dashboard</div>
     </header>
 

@@ -1,6 +1,6 @@
 ---
 title: HuggingPost
-emoji: 📮
+emoji: 📝
 colorFrom: pink
 colorTo: indigo
 sdk: docker
