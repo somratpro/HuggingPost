@@ -52,6 +52,7 @@ UPLOADS_DIR = Path(os.environ.get("UPLOAD_DIRECTORY", str(POSTIZ_HOME / "uploads
 SECRETS_DIR = POSTIZ_HOME / ".secrets"
 NEXT_DIR = Path("/app/apps/frontend/.next")   # compiled frontend; backed up to skip rebuild
 STATUS_FILE = Path("/tmp/sync-status.json")
+STATE_FILE = Path("/tmp/huggingpost-sync-state.json")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -355,9 +356,96 @@ def download_and_restore() -> bool | None:
         return False
 
 
+# ── Change detection helpers ──────────────────────────────────────────────────
+def _get_db_marker() -> int:
+    """Return cumulative DB activity count from pg_stat_database. -1 on error."""
+    db = parse_db_url(DATABASE_URL)
+    if not db:
+        return -1
+    try:
+        db_name = db["database"]
+        result = subprocess.run(
+            [
+                "psql",
+                f"--host={db['host']}",
+                f"--port={db['port']}",
+                f"--username={db['user']}",
+                "--no-password", "--tuples-only", "--no-align",
+                "-c",
+                f"SELECT xact_commit + xact_rollback + tup_inserted + tup_updated + tup_deleted "
+                f"FROM pg_stat_database WHERE datname = '{db_name}'",
+            ],
+            env=env_with_password(db), capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return int(result.stdout.strip())
+    except Exception:
+        pass
+    return -1
+
+
+def _fs_marker(root: Path) -> tuple[int, int, int]:
+    if not root.exists():
+        return (0, 0, 0)
+    fc = ts = nm = 0
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            st = path.stat()
+            fc += 1
+            ts += int(st.st_size)
+            nm = max(nm, int(st.st_mtime_ns))
+        except OSError:
+            continue
+    return (fc, ts, nm)
+
+
+def _next_marker() -> int:
+    build_id = NEXT_DIR / "BUILD_ID"
+    try:
+        return int(build_id.stat().st_mtime_ns) if build_id.exists() else 0
+    except OSError:
+        return 0
+
+
+def _current_marker() -> tuple:
+    return (_get_db_marker(), *_fs_marker(UPLOADS_DIR), *_fs_marker(SECRETS_DIR), _next_marker())
+
+
+def _load_sync_state():
+    try:
+        if STATE_FILE.exists():
+            d = json.loads(STATE_FILE.read_text())
+            m = d.get("marker")
+            if m and len(m) == 8:
+                return tuple(m)
+    except Exception:
+        pass
+    return None
+
+
+def _save_sync_state(marker: tuple) -> None:
+    try:
+        STATE_FILE.write_text(json.dumps({"marker": list(marker)}))
+    except Exception as e:
+        logger.debug(f"Could not save sync state: {e}")
+
+
 # ── Public CLI ───────────────────────────────────────────────────────────────
 def cmd_sync() -> bool:
     logger.info("Syncing backup to HF Dataset...")
+
+    last_marker = _load_sync_state()
+    current_marker = _current_marker()
+    if last_marker is not None and current_marker == last_marker:
+        status = read_status()
+        status["status"] = "synced"
+        status["message"] = "No state changes detected."
+        write_status(status)
+        logger.info("No state changes detected — skipping backup.")
+        return True
+
     status = read_status()
     try:
         dump, ok = backup_database()
@@ -375,6 +463,8 @@ def cmd_sync() -> bool:
         status["sync_count"] = status.get("sync_count", 0) + 1
         write_status(status)
         logger.info("Backup synced OK" if ok else "Backup sync failed")
+        if ok:
+            _save_sync_state(current_marker)
         return ok
     except Exception as e:
         logger.error(f"Backup operation failed: {e}")
