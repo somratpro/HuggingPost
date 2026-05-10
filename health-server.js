@@ -2090,8 +2090,10 @@ const server = http.createServer((req, res) => {
   if (pathname === "/" || pathname === "") {
     void (async () => {
       const postiz = await checkPostizHealth();
+      const uptime = Math.floor((Date.now() - startTime) / 1000);
       const initialData = {
         postizRunning: postiz.status === "running",
+        uptimeHuman: formatUptime(uptime),
         keepalive: getKeepaliveStatus(),
         sync: readSyncStatus(),
       };
