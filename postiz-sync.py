@@ -450,17 +450,22 @@ def cmd_sync() -> bool:
     try:
         dump, ok = backup_database()
         if not ok:
-            status.update({"last_error": "pg_dump failed", "db_status": "error"})
+            status.update({"last_error": "pg_dump failed", "db_status": "error",
+                           "status": "error", "message": "Backup failed: pg_dump error"})
             write_status(status); return False
         tarball, ok = create_backup_tarball(dump)
         if not ok:
-            status.update({"last_error": "tarball creation failed — backup too large or I/O error (check logs)", "db_status": "error"})
+            status.update({"last_error": "tarball creation failed — backup too large or I/O error (check logs)", "db_status": "error",
+                           "status": "error", "message": "Backup failed: tarball too large or I/O error"})
             write_status(status); return False
         ok = upload_to_hf(tarball)
-        status["last_sync_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        status["last_sync_time"] = ts
         status["db_status"] = "connected" if ok else "error"
         status["last_error"] = None if ok else "Upload failed"
         status["sync_count"] = status.get("sync_count", 0) + 1
+        status["status"] = "success" if ok else "error"
+        status["message"] = f"Last synced: {ts}" if ok else "Upload to HF Dataset failed"
         write_status(status)
         logger.info("Backup synced OK" if ok else "Backup sync failed")
         if ok:
@@ -468,7 +473,8 @@ def cmd_sync() -> bool:
         return ok
     except Exception as e:
         logger.error(f"Backup operation failed: {e}")
-        status.update({"last_error": str(e), "db_status": "error"})
+        status.update({"last_error": str(e), "db_status": "error",
+                       "status": "error", "message": f"Backup error: {e}"})
         write_status(status)
         return False
 
@@ -479,21 +485,25 @@ def cmd_restore() -> bool:
     try:
         result = download_and_restore()
         if result is None:
-            status.update({"db_status": "connected", "last_error": None})
+            status.update({"db_status": "connected", "last_error": None,
+                           "status": "configured", "message": "Fresh instance — no prior backup"})
             write_status(status)
             logger.info("No prior backup — fresh instance")
             return True
         if result:
-            status.update({"db_status": "connected", "last_error": None})
+            status.update({"db_status": "connected", "last_error": None,
+                           "status": "restored", "message": "Restored from HF Dataset"})
             write_status(status)
             logger.info("Restore OK")
             return True
-        status.update({"db_status": "error", "last_error": "Restore failed"})
+        status.update({"db_status": "error", "last_error": "Restore failed",
+                       "status": "error", "message": "Restore from HF Dataset failed"})
         write_status(status)
         return False
     except Exception as e:
         logger.error(f"Restore operation failed: {e}")
-        status.update({"last_error": str(e), "db_status": "error"})
+        status.update({"last_error": str(e), "db_status": "error",
+                       "status": "error", "message": f"Restore error: {e}"})
         write_status(status)
         return False
 

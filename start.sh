@@ -86,7 +86,10 @@ export NODE_ENV="${NODE_ENV:-production}"
 export NOT_SECURED="${NOT_SECURED:-true}"
 
 # Sync config
-export SYNC_INTERVAL="${SYNC_INTERVAL:-3600}"  # 60 minutes (override with SYNC_INTERVAL secret)
+# Sanitize: strip non-digits, clamp minimum to 60s to prevent spin loops.
+SYNC_INTERVAL=$(printf '%s' "${SYNC_INTERVAL:-3600}" | tr -dc '0-9')
+{ [ -z "${SYNC_INTERVAL}" ] || [ "${SYNC_INTERVAL}" -lt 60 ]; } && SYNC_INTERVAL=3600
+export SYNC_INTERVAL
 export SYNC_MAX_FILE_BYTES="${SYNC_MAX_FILE_BYTES:-524288000}"  # 500 MB (default; covers .next + DB + uploads)
 export BACKUP_DATASET_NAME="${BACKUP_DATASET_NAME:-huggingpost-backup}"
 
@@ -293,8 +296,9 @@ cd "${POSTIZ_DIR}"
     -e 'Packages: \+[0-9]|^\+\+\+|preinstall\$|preinstall: Done' \
     -e 'Scope: [0-9]+ of|Progress: resolved|\(Use --lines' \
     -e '^apps/(frontend|backend|cron|workers) pm2:' \
-    -e '^> gitroom@|^> postiz-[a-z]|^> pnpm (dlx|run)|^> dotenv' \
-    -e '[┌┐└┘├┤│─┼]|_\\/+_|\-{10,}' \
+    -e '^> gitroom@|^> postiz-[a-z]|^> pnpm (dlx|run)|^> dotenv|^> pm2 ' \
+    -e '[┌┐└┘├┤│─┼]|_\\/+_|\-{10,}|\\{4,}' \
+    -e '/root/\.pm2/.*\.log last [0-9]' \
     -e '^[[:space:]]*$' \
   | sed 's/^/[postiz] /' ) &
 POSTIZ_PID=$!
