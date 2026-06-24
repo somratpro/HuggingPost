@@ -19,6 +19,8 @@ secrets:
 [![HF Space](https://img.shields.io/badge/🤗%20HuggingFace-Space-blue?style=flat-square)](https://huggingface.co/spaces/somratpro/HuggingPost)
 [![Postiz](https://img.shields.io/badge/Postiz-v2.11.3-ec4899?style=flat-square)](https://github.com/gitroomhq/postiz-app)
 
+⚠️ WARNING: USING THIS PROJECT MAY LEAD TO THE SUSPENSION OF YOUR HUGGINGFACE ACCOUNT.
+
 **Self-host [Postiz](https://postiz.com) (open-source social-media scheduler — X, LinkedIn, Facebook, Threads, TikTok, YouTube, Pinterest, Reddit, Mastodon, Discord, Slack, and more) on the free Hugging Face Spaces tier.** Persistent across restarts via private HF Dataset backup. No external database, no paid storage required.
 
 ## Table of Contents
